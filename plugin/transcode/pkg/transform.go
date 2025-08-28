@@ -30,7 +30,7 @@ const (
 )
 
 type (
-	TransMode    string
+	TransMode    = string
 	DecodeConfig struct {
 		Mode   TransMode `default:"pipe" json:"mode" desc:"转码模式"` //转码模式
 		Codec  string    `json:"codec" desc:"解码器"`

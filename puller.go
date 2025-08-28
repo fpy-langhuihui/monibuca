@@ -1,6 +1,7 @@
 package m7s
 
 import (
+	"crypto/tls"
 	"io"
 	"math"
 	"net/http"
@@ -80,15 +81,18 @@ func (conn *Connection) Init(plugin *Plugin, streamPath string, href string, pro
 	conn.RemoteURL = href
 	conn.StreamPath = streamPath
 	conn.Plugin = plugin
-	conn.HTTPClient = http.DefaultClient
+	// Create a custom HTTP client that ignores HTTPS certificate validation
+	tr := &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+	}
 	if proxyConf != "" {
 		proxy, err := url.Parse(proxyConf)
 		if err != nil {
 			return
 		}
-		transport := &http.Transport{Proxy: http.ProxyURL(proxy)}
-		conn.HTTPClient = &http.Client{Transport: transport}
+		tr.Proxy = http.ProxyURL(proxy)
 	}
+	conn.HTTPClient = &http.Client{Transport: tr}
 }
 
 func (p *PullJob) GetPullJob() *PullJob {

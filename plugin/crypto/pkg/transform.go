@@ -125,14 +125,9 @@ func (t *Transform) Go() error {
 			copyAudio.ICodecCtx = audio.ICodecCtx
 			*writer.AudioFrame.BaseSample = *audio.BaseSample
 			audio.CopyTo(copyAudio.NextN(audio.Size))
-			err = writer.NextAudio()
-			return
+			return writer.NextAudio()
 		},
 		func(video *format.H26xFrame) error {
-			// 处理视频帧
-			if video.Size == 0 {
-				return nil
-			}
 			copyVideo := writer.VideoFrame
 			copyVideo.ICodecCtx = video.ICodecCtx
 			*copyVideo.BaseSample = *video.BaseSample
@@ -149,7 +144,8 @@ func (t *Transform) Go() error {
 					}
 				} else if video.FourCC() == codec.FourCC_H265 {
 					switch codec.ParseH265NALUType(mem[0]) {
-					case h265parser.NAL_UNIT_CODED_SLICE_BLA_W_LP,
+					case 0, 1, 2, 3, 4, 5, 6, 7, 8, 9,
+						h265parser.NAL_UNIT_CODED_SLICE_BLA_W_LP,
 						h265parser.NAL_UNIT_CODED_SLICE_BLA_W_RADL,
 						h265parser.NAL_UNIT_CODED_SLICE_BLA_N_LP,
 						h265parser.NAL_UNIT_CODED_SLICE_IDR_W_RADL,
