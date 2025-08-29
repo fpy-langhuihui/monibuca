@@ -19,7 +19,7 @@ gb28181:
       ^gb_\d+/(.+)$: $1
   platforms:
     - enable: true  #是否启用平台
-      name: "测试平台" #平台名称
+      name: "测试上级平台" #平台名称
       servergbid: "34020000002000000001" #上级平台GBID
       servergbdomain: "3402000000" #上级平台GB域
       serverip: 192.168.61.76 #上级平台IP
