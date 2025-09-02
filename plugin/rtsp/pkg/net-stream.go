@@ -75,7 +75,15 @@ func (c *Stream) Do(req *util.Request) (*util.Response, error) {
 }
 
 func (c *Stream) Options() error {
-	req := &util.Request{Method: MethodOptions, URL: c.URL}
+	req := &util.Request{
+		Method: MethodOptions,
+		URL:    c.URL,
+		Header: map[string][]string{},
+	}
+
+	if c.UserAgent != "" {
+		req.Header.Set("User-Agent", c.UserAgent)
+	}
 
 	res, err := c.Do(req)
 	if err != nil {
@@ -249,7 +257,17 @@ func (c *Stream) SetupMedia(media *Media, index int) (byte, error) {
 }
 
 func (c *Stream) Play() (err error) {
-	_, err = c.Do(&util.Request{Method: MethodPlay, URL: c.URL})
+	req := &util.Request{
+		Method: MethodPlay,
+		URL:    c.URL,
+		Header: map[string][]string{},
+	}
+
+	if c.UserAgent != "" {
+		req.Header.Set("User-Agent", c.UserAgent)
+	}
+
+	_, err = c.Do(req)
 	return
 }
 
