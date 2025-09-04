@@ -50,9 +50,9 @@ gb28181:
         - platformservergbid: "34020000002000000002" #上级平台GBID
           channeldbid: "34020000001110000003_34020000001320000005" #通道DBID,格式为设备ID_通道ID
 mp4:
-  # enable: false
-  # publish:
-  #   delayclosetimeout: 3s
+  enable: true
+  publish:
+    delayclosetimeout: 3s
   # onpub:
   #   record:
   #     ^live/.+:
@@ -133,3 +133,6 @@ onvif:
   #   - ip: 192.168.1.2
   #     username: admin
   #     password: '456'
+webrtc:
+  enable: true # 在global配置disableall时能启用特定插件
+  port: tcp:9001 # 监听端口

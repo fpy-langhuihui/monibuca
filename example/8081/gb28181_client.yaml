@@ -139,7 +139,7 @@ onvif:
   #     password: '456'
 
 webrtc:
-  port: tcp:9001 # 监听端口
+  port: tcp:9000 # 监听端口
 
 rtmp:
   tcp:
