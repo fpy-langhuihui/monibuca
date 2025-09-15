@@ -1,4 +1,4 @@
-package rtp
+package pkg
 
 import (
 	"encoding/hex"
@@ -98,24 +98,31 @@ func (r *RTPCtx) GetRTPCodecParameter() webrtc.RTPCodecParameters {
 	return r.RTPCodecParameters
 }
 
-func (r *RTPData) Append(ctx *RTPCtx, ts uint32, payload []byte) (packet *rtp.Packet) {
+func (r *RTPData) Append(ctx *RTPCtx, ts uint32, payload []byte) *rtp.Packet {
 	ctx.SequenceNumber++
-	packet = r.Packets.GetNextPointer()
-	packet.Header = rtp.Header{
-		Version:        2,
-		SequenceNumber: ctx.SequenceNumber,
-		Timestamp:      ts,
-		SSRC:           ctx.SSRC,
-		PayloadType:    uint8(ctx.PayloadType),
-	}
-	packet.Payload = payload
-	return
+	r.Packets = append(r.Packets, rtp.Packet{
+		Header: rtp.Header{
+			Version:        2,
+			SequenceNumber: ctx.SequenceNumber,
+			Timestamp:      ts,
+			SSRC:           ctx.SSRC,
+			PayloadType:    uint8(ctx.PayloadType),
+		},
+		Payload: payload,
+	})
+	return &r.Packets[len(r.Packets)-1]
 }
 
 var _ IAVFrame = (*AudioFrame)(nil)
 
 type AudioFrame struct {
 	RTPData
+}
+
+func (r *AudioFrame) Parse(data IAVFrame) (err error) {
+	input := data.(*AudioFrame)
+	r.Packets = append(r.Packets[:0], input.Packets...)
+	return
 }
 
 func payloadLengthInfoDecode(buf []byte) (int, int, error) {
@@ -313,8 +320,9 @@ func (r *AudioFrame) Mux(from *Sample) (err error) {
 			ctx.PayloadType = 8
 			ctx.ClockRate = uint32(ctx.SampleRate)
 			r.ICodecCtx = &ctx
+		} else {
+			ctx = &r.ICodecCtx.(*PCMACtx).RTPCtx
 		}
-		ctx = &r.ICodecCtx.(*PCMACtx).RTPCtx
 	case *codec.PCMUCtx:
 		if r.ICodecCtx == nil {
 			var ctx PCMUCtx
@@ -324,8 +332,9 @@ func (r *AudioFrame) Mux(from *Sample) (err error) {
 			ctx.PayloadType = 0
 			ctx.ClockRate = uint32(ctx.SampleRate)
 			r.ICodecCtx = &ctx
+		} else {
+			ctx = &r.ICodecCtx.(*PCMUCtx).RTPCtx
 		}
-		ctx = &r.ICodecCtx.(*PCMUCtx).RTPCtx
 	}
 	pts := uint32(from.Timestamp * time.Duration(ctx.ClockRate) / time.Second)
 	if reader := data.NewReader(); reader.Length > MTUSize {

@@ -3,7 +3,7 @@ package plugin_gb28181pro
 import (
 	"errors"
 	"fmt"
-	"net"
+	"log/slog"
 	"net/http"
 	"os"
 	"regexp"
@@ -17,7 +17,6 @@ import (
 
 	"github.com/emiago/sipgo"
 	"github.com/emiago/sipgo/sip"
-	"github.com/rs/zerolog"
 	m7s "m7s.live/v5"
 	"m7s.live/v5/pkg/config"
 	"m7s.live/v5/pkg/task"
@@ -53,7 +52,7 @@ type GB28181Plugin struct {
 	ua                    *sipgo.UserAgent
 	server                *sipgo.Server
 	devices               task.WorkCollection[string, *Device]
-	dialogs               task.WorkCollection[string, *Dialog]
+	dialogs               util.Collection[string, *Dialog]
 	forwardDialogs        util.Collection[uint32, *ForwardDialog]
 	platforms             task.WorkCollection[string, *Platform]
 	tcpPorts              chan uint16
@@ -64,7 +63,9 @@ type GB28181Plugin struct {
 	deviceRegisterManager task.WorkCollection[string, *DeviceRegisterQueueTask]
 	Platforms             []*gb28181.PlatformModel
 	channels              util.Collection[string, *Channel]
-	netListener           net.Listener
+	udpPorts              chan uint16
+	udpPort               uint16
+	singlePorts           util.Collection[uint32, *gb28181.SinglePortReader]
 }
 
 var _ = m7s.InstallPlugin[GB28181Plugin](m7s.PluginMeta{
@@ -78,18 +79,6 @@ var _ = m7s.InstallPlugin[GB28181Plugin](m7s.PluginMeta{
 	},
 	NewPullProxy: NewPullProxy,
 })
-
-func (gb *GB28181Plugin) Dispose() {
-	if gb.netListener != nil {
-		gb.Info("gb28181 plugin dispose")
-		err := gb.netListener.Close()
-		if err != nil {
-			gb.Error("Close netListener error", "error", err)
-		} else {
-			gb.Info("netListener closed")
-		}
-	}
-}
 
 func init() {
 	sip.SIPDebug = true
@@ -152,16 +141,22 @@ func (gb *GB28181Plugin) Start() (err error) {
 		return pkg.ErrNoDB
 	}
 	gb.Info("GB28181 initing", gb.Platforms)
-	logger := zerolog.New(os.Stdout)
-	gb.ua, err = sipgo.NewUA(sipgo.WithUserAgent("M7S/" + m7s.Version)) // Build user agent
+	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+	// 设置 TCP 传输模式
+	tcpOption := sip.WithTransportLayerConnectionReuse(true) // 启用连接重用
+	gb.ua, err = sipgo.NewUA(
+		sipgo.WithUserAgent("M7S/"+m7s.Version),
+		sipgo.WithUserAgentTransportLayerOptions(tcpOption), // 使用 TCP 选项
+	) // Build user agent
 	// Creating client handle for ua
 	if len(gb.Sip.ListenAddr) > 0 {
 		gb.AddTask(&catalogHandlerQueueTask)
 		gb.AddTask(&gb.devices)
 		gb.AddTask(&gb.platforms)
-		gb.AddTask(&gb.dialogs)
 		gb.AddTask(&gb.deviceRegisterManager)
+		gb.dialogs.L = new(sync.RWMutex)
 		gb.forwardDialogs.L = new(sync.RWMutex)
+		gb.singlePorts.L = new(sync.RWMutex)
 		gb.server, _ = sipgo.NewServer(gb.ua, sipgo.WithServerLogger(logger)) // Creating server handle for ua
 		gb.server.OnMessage(gb.OnMessage)
 		gb.server.OnRegister(gb.OnRegister)
@@ -171,17 +166,24 @@ func (gb *GB28181Plugin) Start() (err error) {
 		gb.server.OnNotify(gb.OnNotify)
 
 		if gb.MediaPort.Valid() {
-			gb.SetDescription("tcp", fmt.Sprintf("%d-%d", gb.MediaPort[0], gb.MediaPort[1]))
-			gb.tcpPorts = make(chan uint16, gb.MediaPort.Size())
+			gb.SetDescription("media port", fmt.Sprintf("%d-%d", gb.MediaPort[0], gb.MediaPort[1]))
 			if gb.MediaPort.Size() == 0 {
 				gb.tcpPort = gb.MediaPort[0]
-				gb.netListener, _ = net.Listen("tcp4", fmt.Sprintf(":%d", gb.tcpPort))
-			} else if gb.MediaPort.Size() == 1 {
-				gb.tcpPort = gb.MediaPort[0] + 1
-				gb.netListener, _ = net.Listen("tcp4", fmt.Sprintf(":%d", gb.tcpPort))
+				gb.AddTask(&gb28181.SinglePortTCP{
+					Port:       gb.tcpPort,
+					Collection: &gb.singlePorts,
+				})
+				gb.udpPort = gb.MediaPort[0]
+				gb.AddTask(&gb28181.SinglePortUDP{
+					Port:       gb.udpPort,
+					Collection: &gb.singlePorts,
+				})
 			} else {
+				gb.tcpPorts = make(chan uint16, gb.MediaPort.Size())
+				gb.udpPorts = make(chan uint16, gb.MediaPort.Size())
 				for i := range gb.MediaPort.Size() {
 					gb.tcpPorts <- gb.MediaPort[0] + i
+					gb.udpPorts <- gb.MediaPort[0] + i
 				}
 			}
 		} else {
@@ -334,7 +336,14 @@ func (gb *GB28181Plugin) checkDeviceExpire() (err error) {
 		}
 
 		// 创建SIP客户端
-		device.client, _ = sipgo.NewClient(gb.ua, sipgo.WithClientLogger(zerolog.New(os.Stdout)), sipgo.WithClientHostname(device.SipIp))
+		opts := &slog.HandlerOptions{
+			Level:     slog.LevelDebug,
+			AddSource: true,
+		}
+		logHandler := slog.NewJSONHandler(os.Stdout, opts)
+		logger := slog.New(logHandler)
+		slog.SetDefault(logger) // 设置为默认日志记录器
+		device.client, _ = sipgo.NewClient(gb.ua, sipgo.WithClientLogger(logger), sipgo.WithClientHostname(device.SipIp))
 		device.Info("checkDeviceExpire", "d.SipIp", device.SipIp, "d.LocalPort", device.LocalPort, "d.contactHDR", device.contactHDR)
 
 		// 设置设备ID的hash值作为任务ID
