@@ -84,12 +84,12 @@ flv:
 #   pull:
 #     live/test: https://livecb.alicdn.com/mediaplatform/afb241b3-408c-42dd-b665-04d22b64f9df.flv?auth_key=1734575216-0-0-c62721303ce751c8e5b2c95a2ec242a0&F=pc&source=34675810_null_live_detail&ali_flv_retain=2
 hls:
-  # onsub:
-  #   pull:
-  #     ^vod_hls_\d+/(.+)$: $1
+  onsub:
+    pull:
+      ^vod_hls_\d+/(.+)$: $1
   # pull:
   #   live/test: https://devstreaming-cdn.apple.com/videos/streaming/examples/bipbop_4x3/gear3/prog_index.m3u8
-#   onpub:
+#  onpub: ## 将直播流转hls
 #     transform:
 #       .* : 5s x 3
 
@@ -106,9 +106,13 @@ s3:
   useSSL: true
 
 rtsp:
-  # pull:
-  # live/test: rtsp://admin:1qaz2wsx3EDC@58.212.158.30/Streaming/Channels/101
-  # live/test: rtsp://admin:1qaz2wsx3EDC@localhost:8554/live/test
+  enable: true
+  tcp: :8554
+  publish:
+    delayclosetimeout: 20s
+#  pull:
+#    live/test: rtsp://admin:hw1234567@192.168.9.80/Streaming/Channels/101
+#    live/test: rtsp://admin:1qaz2wsx3EDC@localhost:8554/live/test
 # webrtc:
 #   publish:
 #     pubaudio: false
