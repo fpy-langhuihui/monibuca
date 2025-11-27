@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/langhuihui/gotask"
 	"github.com/mcuadros/go-defaults"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -16,7 +17,6 @@ import (
 	"m7s.live/v5/pb"
 	"m7s.live/v5/pkg"
 	"m7s.live/v5/pkg/config"
-	"m7s.live/v5/pkg/task"
 )
 
 const (
@@ -196,7 +196,7 @@ func (d *PushProxyConfig) InitializeWithServer(s *Server) {
 			return
 		}
 		switch u.Scheme {
-		case "srt", "rtsp", "rtmp":
+		case "srt", "rtsp", "rtmp", "webrtc":
 			d.Type = u.Scheme
 		default:
 			ext := filepath.Ext(u.Path)
@@ -272,7 +272,7 @@ func (s *Server) AddPushProxy(ctx context.Context, req *pb.PushProxyInfo) (res *
 			return
 		}
 		switch u.Scheme {
-		case "srt", "rtsp", "rtmp":
+		case "srt", "rtsp", "rtmp", "webrtc":
 			device.Type = u.Scheme
 		default:
 			ext := filepath.Ext(u.Path)

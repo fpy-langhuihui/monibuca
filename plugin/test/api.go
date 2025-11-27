@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -13,10 +14,10 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	task "github.com/langhuihui/gotask"
 	"m7s.live/v5"
 	pb "m7s.live/v5/pb"
 	"m7s.live/v5/pkg/config"
-	"m7s.live/v5/pkg/task"
 	"m7s.live/v5/pkg/util"
 	flv "m7s.live/v5/plugin/flv/pkg"
 	hls "m7s.live/v5/plugin/hls/pkg"
@@ -157,12 +158,15 @@ func (p *TestPlugin) pull(count int, url string, testMode int32, puller m7s.Pull
 			if err = ctx.WaitStarted(); err != nil {
 				return
 			}
-			if p.pullers.AddUnique(ctx) {
+			if old, ok := p.pullers.Get(ctx.GetKey()); ok {
+				ctx.Stop(task.ExistTaskError{
+					Task: old,
+				})
+			} else {
+				p.pullers.Add(ctx)
 				ctx.OnDispose(func() {
 					p.pullers.Remove(ctx)
 				})
-			} else {
-				ctx.Stop(task.ErrExist)
 			}
 		}
 	} else if count < i {
@@ -184,12 +188,15 @@ func (p *TestPlugin) push(count int, streamPath, url string, pusher m7s.PusherFa
 			if err = ctx.WaitStarted(); err != nil {
 				return
 			}
-			if p.pushers.AddUnique(ctx) {
+			if old, ok := p.pushers.Get(ctx.GetKey()); ok {
+				ctx.Stop(task.ExistTaskError{
+					Task: old,
+				})
+			} else {
+				p.pushers.Add(ctx)
 				ctx.OnDispose(func() {
 					p.pushers.Remove(ctx)
 				})
-			} else {
-				ctx.Stop(task.ErrExist)
 			}
 		}
 	} else if count < i {
@@ -203,6 +210,19 @@ func (p *TestPlugin) push(count int, streamPath, url string, pusher m7s.PusherFa
 
 func (p *TestPlugin) StartPush(ctx context.Context, req *testpb.PushRequest) (res *pb.SuccessResponse, err error) {
 	var pusher m7s.PusherFactory
+	if req.Protocol == "" {
+		if strings.HasPrefix(req.RemoteURL, "http") {
+			req.Protocol = "webrtc"
+		} else if strings.HasPrefix(req.RemoteURL, "srt") {
+			req.Protocol = "srt"
+		} else if strings.HasPrefix(req.RemoteURL, "rtsp") {
+			req.Protocol = "rtsp"
+		} else if strings.HasPrefix(req.RemoteURL, "rtmp") {
+			req.Protocol = "rtmp"
+		} else {
+			return nil, fmt.Errorf("unsupport protocol %s", req.RemoteURL)
+		}
+	}
 	switch req.Protocol {
 	case "rtmp":
 		pusher = rtmp.NewPusher
@@ -210,7 +230,7 @@ func (p *TestPlugin) StartPush(ctx context.Context, req *testpb.PushRequest) (re
 		pusher = rtsp.NewPusher
 	case "srt":
 		pusher = srt.NewPusher
-	case "whip":
+	case "webrtc":
 		pusher = webrtc.NewPusher
 	default:
 		return nil, fmt.Errorf("unsupport protocol %s", req.Protocol)
@@ -220,6 +240,27 @@ func (p *TestPlugin) StartPush(ctx context.Context, req *testpb.PushRequest) (re
 
 func (p *TestPlugin) StartPull(ctx context.Context, req *testpb.PullRequest) (res *pb.SuccessResponse, err error) {
 	var puller m7s.PullerFactory
+	if req.Protocol == "" {
+		u, err := url.Parse(req.RemoteURL)
+		if err != nil {
+			return nil, fmt.Errorf("parse remote url failed: %w", err)
+		}
+		if strings.HasSuffix(u.Path, ".m3u8") {
+			req.Protocol = "hls"
+		} else if strings.HasSuffix(u.Path, ".flv") {
+			req.Protocol = "flv"
+		} else if strings.HasSuffix(u.Path, ".mp4") {
+			req.Protocol = "mp4"
+		} else if strings.HasPrefix(req.RemoteURL, "srt") {
+			req.Protocol = "srt"
+		} else if strings.HasPrefix(req.RemoteURL, "rtsp") {
+			req.Protocol = "rtsp"
+		} else if strings.HasPrefix(req.RemoteURL, "rtmp") {
+			req.Protocol = "rtmp"
+		} else {
+			req.Protocol = "webrtc"
+		}
+	}
 	switch req.Protocol {
 	case "rtmp":
 		puller = rtmp.NewPuller
@@ -231,7 +272,7 @@ func (p *TestPlugin) StartPull(ctx context.Context, req *testpb.PullRequest) (re
 		puller = flv.NewPuller
 	case "mp4":
 		puller = mp4.NewPuller
-	case "whep":
+	case "webrtc":
 		puller = webrtc.NewPuller
 	case "hls":
 		puller = hls.NewPuller

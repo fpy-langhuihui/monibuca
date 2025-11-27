@@ -12,8 +12,9 @@ import (
 	"time"
 
 	"m7s.live/v5/pkg"
-	"m7s.live/v5/pkg/task"
 
+	"github.com/langhuihui/gomem"
+	task "github.com/langhuihui/gotask"
 	"m7s.live/v5"
 	"m7s.live/v5/pkg/util"
 )
@@ -21,12 +22,14 @@ import (
 const Timeout = time.Second * 10
 
 func NewNetConnection(conn net.Conn) *NetConnection {
-	return &NetConnection{
+	c := &NetConnection{
 		Conn:            conn,
-		BufReader:       util.NewBufReaderWithTimeout(conn, Timeout),
-		MemoryAllocator: util.NewScalableMemoryAllocator(1 << 12),
+		BufReader:       util.NewBufReader(conn),
+		MemoryAllocator: gomem.NewScalableMemoryAllocator(1 << 12),
 		UserAgent:       "monibuca" + m7s.Version,
 	}
+	c.BufReader.SetTimeout(Timeout)
+	return c
 }
 
 type NetConnection struct {
@@ -38,13 +41,13 @@ type NetConnection struct {
 	SessionName     string
 	Timeout         int
 	Transport       string // custom transport support, ex. RTSP over WebSocket
-	MemoryAllocator *util.ScalableMemoryAllocator
+	MemoryAllocator *gomem.ScalableMemoryAllocator
 	UserAgent       string
 	URL             *url.URL
 
 	// internal
 
-	auth        *util.Auth
+	Auth        *util.Auth
 	Conn        net.Conn
 	keepalive   int
 	sequence    int
@@ -142,12 +145,14 @@ func (c *NetConnection) Connect(remoteURL string) (err error) {
 	}
 	c.Conn = conn
 	c.BufReader = util.NewBufReader(conn)
-	c.URL = rtspURL
+	c.BufReader.SetTimeout(Timeout)
 	c.UserAgent = "monibuca" + m7s.Version
 	c.Session = ""
-	c.auth = util.NewAuth(c.URL.User)
+	c.Auth = util.NewAuth(rtspURL.User)
+	c.URL = rtspURL
+	c.URL.User = nil
 	c.SetDescription("remoteAddr", conn.RemoteAddr().String())
-	c.MemoryAllocator = util.NewScalableMemoryAllocator(1 << 12)
+	c.MemoryAllocator = gomem.NewScalableMemoryAllocator(1 << 12)
 	// c.Backchannel = true
 	return
 }
@@ -166,7 +171,7 @@ func (c *NetConnection) WriteRequest(req *util.Request) (err error) {
 	// https://github.com/AlexxIT/go2rtc/issues/7
 	req.Header["CSeq"] = []string{strconv.Itoa(c.sequence)}
 
-	c.auth.Write(req)
+	c.Auth.Write(req)
 
 	if c.Session != "" {
 		req.Header.Set("Session", c.Session)
@@ -253,9 +258,7 @@ func (c *NetConnection) Receive(sendMode bool, onReceive func(byte, []byte) erro
 			return
 		}
 		ts := time.Now()
-		if err = c.Conn.SetReadDeadline(ts.Add(util.Conditional(sendMode, time.Second*60, time.Second*15))); err != nil {
-			return
-		}
+
 		var magic []byte
 		// we can read:
 		// 1. RTP interleaved: `$` + 1B channel number + 2B size

@@ -5,9 +5,8 @@ import (
 	"net"
 	"strings"
 
+	task "github.com/langhuihui/gotask"
 	"m7s.live/v5/pkg/util"
-
-	"m7s.live/v5/pkg/task"
 
 	"m7s.live/v5"
 	. "m7s.live/v5/plugin/rtsp/pkg"
@@ -24,6 +23,8 @@ var _ = m7s.InstallPlugin[RTSPPlugin](m7s.PluginMeta{
 
 type RTSPPlugin struct {
 	m7s.Plugin
+	UserName string             `desc:"用户名"`
+	Password string             `desc:"密码"`
 	UdpPort  util.Range[uint16] `default:"20001-30000" desc:"媒体端口范围"` //媒体端口范围
 	udpPorts chan uint16
 }

@@ -2,6 +2,7 @@ package hls
 
 import (
 	"container/ring"
+	"errors"
 	"fmt"
 	"math"
 	"strconv"
@@ -9,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	task "github.com/langhuihui/gotask"
 	"m7s.live/v5"
 	"m7s.live/v5/pkg/codec"
 	"m7s.live/v5/pkg/format"
@@ -23,6 +25,8 @@ func NewTransform() m7s.ITransformer {
 	}
 	return ret
 }
+
+var ErrNoBodyRead = errors.New("no body read")
 
 type HLSWriter struct {
 	m7s.DefaultTransformer
@@ -47,6 +51,15 @@ func (w *HLSWriter) Start() (err error) {
 func (w *HLSWriter) GetTs(key string) (any, bool) {
 	w.lastReadTime = time.Now()
 	return w.memoryTs.Load(key)
+}
+
+func (w *HLSWriter) checkNoBodyRead() bool {
+	// 如果从未被读取过（纯录制模式），不检查超时
+	if w.lastReadTime.IsZero() {
+		return false
+	}
+	// 曾经有人播放过，检查是否15秒无访问
+	return time.Since(w.lastReadTime) > time.Second*15
 }
 
 func (w *HLSWriter) Run() (err error) {
@@ -86,8 +99,14 @@ func (w *HLSWriter) Run() (err error) {
 	w.ts.WritePMTPacket(audioCodec, videoCodec)
 	return m7s.PlayBlock(subscriber, func(audio *format.Mpeg2Audio) error {
 		pesAudio.Pts = uint64(subscriber.AudioReader.AbsTime) * 90
+		if w.checkNoBodyRead() {
+			return errors.Join(ErrNoBodyRead, task.ErrStopByUser)
+		}
 		return pesAudio.WritePESPacket(audio.Memory, &w.ts.RecyclableMemory)
 	}, func(video *mpegts.VideoFrame) (err error) {
+		if w.checkNoBodyRead() {
+			return errors.Join(ErrNoBodyRead, task.ErrStopByUser)
+		}
 		vr := w.TransformJob.Subscriber.VideoReader
 		if vr.Value.IDR {
 			if err = w.checkFragment(video.Timestamp); err != nil {

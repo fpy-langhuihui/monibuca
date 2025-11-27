@@ -1,15 +1,14 @@
 package m7s
 
 import (
-	"os"
-	"path/filepath"
+	"fmt"
 	"time"
 
 	"gorm.io/gorm"
 
+	task "github.com/langhuihui/gotask"
 	"m7s.live/v5/pkg/config"
-
-	"m7s.live/v5/pkg/task"
+	"m7s.live/v5/pkg/storage"
 )
 
 type (
@@ -33,6 +32,7 @@ type (
 		SubConf    *config.Subscribe
 		RecConf    *config.Record
 		recorder   IRecorder
+		storage    storage.Storage // 存储实例
 	}
 	DefaultRecorder struct {
 		task.Task
@@ -40,19 +40,20 @@ type (
 		Event     EventRecordStream
 	}
 	RecordStream struct {
-		ID          uint      `gorm:"primarykey"`
-		StartTime   time.Time `gorm:"default:NULL"`
-		EndTime     time.Time `gorm:"default:NULL"`
-		Duration    uint32    `gorm:"comment:录像时长;default:0"`
-		Filename    string    `json:"fileName" desc:"文件名" gorm:"type:varchar(255);comment:文件名"`
-		Type        string    `json:"type" desc:"录像文件类型" gorm:"type:varchar(255);comment:录像文件类型,flv,mp4,raw,fmp4,hls"`
-		FilePath    string
-		StreamPath  string
-		AudioCodec  string
-		VideoCodec  string
-		CreatedAt   time.Time
-		DeletedAt   gorm.DeletedAt    `gorm:"index" yaml:"-"`
-		RecordLevel config.EventLevel `json:"eventLevel" desc:"事件级别" gorm:"type:varchar(255);comment:事件级别,high表示重要事件，无法删除且表示无需自动删除,low表示非重要事件,达到自动删除时间后，自动删除;default:'low'"`
+		ID           uint      `gorm:"primarykey"`
+		StartTime    time.Time `gorm:"default:NULL"`
+		EndTime      time.Time `gorm:"default:NULL"`
+		Duration     uint32    `gorm:"comment:录像时长;default:0"`
+		Filename     string    `json:"fileName" desc:"文件名" gorm:"type:varchar(255);comment:文件名"`
+		Type         string    `json:"type" desc:"录像文件类型" gorm:"type:varchar(255);comment:录像文件类型,flv,mp4,raw,fmp4,hls"`
+		FilePath     string
+		StreamPath   string
+		AudioCodec   string
+		VideoCodec   string
+		CreatedAt    time.Time
+		DeletedAt    gorm.DeletedAt    `gorm:"index" yaml:"-"`
+		RecordLevel  config.EventLevel `json:"eventLevel" desc:"事件级别" gorm:"type:varchar(255);comment:事件级别,high表示重要事件，无法删除且表示无需自动删除,low表示非重要事件,达到自动删除时间后，自动删除;default:'low'"`
+		StorageLevel int                `json:"storageLevel" desc:"存储级别" gorm:"comment:存储级别,1=主存储,2=次级存储;default:1"`
 	}
 )
 
@@ -67,16 +68,24 @@ func (r *DefaultRecorder) Start() (err error) {
 func (r *DefaultRecorder) CreateStream(start time.Time, customFileName func(*RecordJob) string) (err error) {
 	recordJob := &r.RecordJob
 	sub := recordJob.Subscriber
+
+	// 生成文件路径
+	filePath := customFileName(recordJob)
+
+	recordJob.storage = r.createStorage(recordJob.RecConf.Storage)
+
+	if recordJob.storage == nil {
+		return fmt.Errorf("storage config is required")
+	}
+
 	r.Event.RecordStream = RecordStream{
-		StartTime:  start,
-		StreamPath: sub.StreamPath,
-		FilePath:   customFileName(recordJob),
-		Type:       recordJob.RecConf.Type,
+		StartTime:    start,
+		StreamPath:   sub.StreamPath,
+		FilePath:     filePath,
+		Type:         recordJob.RecConf.Type,
+		StorageLevel: 1, // 默认为主存储
 	}
-	dir := filepath.Dir(r.Event.FilePath)
-	if err = os.MkdirAll(dir, 0755); err != nil {
-		return
-	}
+
 	if sub.Publisher.HasAudioTrack() {
 		r.Event.AudioCodec = sub.Publisher.AudioTrack.ICodecCtx.String()
 	}
@@ -94,6 +103,23 @@ func (r *DefaultRecorder) CreateStream(start time.Time, customFileName func(*Rec
 		}
 	}
 	return
+}
+
+// createStorage 创建存储实例
+func (r *DefaultRecorder) createStorage(storageConfig map[string]any) storage.Storage {
+	for t, conf := range storageConfig {
+		storage, err := storage.CreateStorage(t, conf)
+		if err == nil {
+			return storage
+		}
+	}
+	localStorage, err := storage.CreateStorage("local", r.RecordJob.RecConf.FilePath)
+	if err == nil {
+		return localStorage
+	} else {
+		r.Error("create storage failed", "err", err)
+	}
+	return nil
 }
 
 func (r *DefaultRecorder) WriteTail(end time.Time, tailJob task.IJob) {
@@ -115,6 +141,11 @@ func (r *DefaultRecorder) WriteTail(end time.Time, tailJob task.IJob) {
 
 func (p *RecordJob) GetKey() string {
 	return p.RecConf.FilePath
+}
+
+// GetStorage 获取存储实例
+func (p *RecordJob) GetStorage() storage.Storage {
+	return p.storage
 }
 
 func (p *RecordJob) Subscribe() (err error) {

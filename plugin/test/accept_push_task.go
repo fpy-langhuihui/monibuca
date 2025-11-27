@@ -7,7 +7,7 @@ import (
 	"os/exec"
 	"strings"
 
-	"m7s.live/v5/pkg/task"
+	task "github.com/langhuihui/gotask"
 )
 
 func init() {
@@ -34,7 +34,7 @@ func (rt *AcceptPushTask) Start() error {
 	}
 	// 添加视频编码参数
 	if !rt.testCase.AudioOnly {
-		args = append(args, "-c:v", rt.testCase.VideoCodec)
+		args = append(args, "-c:v", rt.testCase.VideoCodec, "-b:v", "200k")
 	} else {
 		args = append(args, "-vn")
 	}

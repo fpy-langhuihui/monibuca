@@ -10,22 +10,22 @@ import (
 	"m7s.live/v5/pkg/codec"
 	"m7s.live/v5/pkg/util"
 	"m7s.live/v5/plugin/mp4/pb"
-	mp4 "m7s.live/v5/plugin/mp4/pkg"
-	pkg "m7s.live/v5/plugin/mp4/pkg"
+	mp4pkg "m7s.live/v5/plugin/mp4/pkg"
 	"m7s.live/v5/plugin/mp4/pkg/box"
 )
 
 type MP4Plugin struct {
 	pb.UnimplementedApiServer
 	m7s.Plugin
-	BeforeDuration           time.Duration `default:"30s" desc:"事件录像提前时长，不配置则默认30s"`
-	AfterDuration            time.Duration `default:"30s" desc:"事件录像结束时长，不配置则默认30s"`
-	RecordFileExpireDays     int           `desc:"录像自动删除的天数,0或未设置表示不自动删除"`
-	DiskMaxPercent           float64       `default:"90" desc:"硬盘使用百分之上限值，超上限后触发报警，并停止当前所有磁盘写入动作。"`
-	AutoOverWriteDiskPercent float64       `default:"0" desc:"自动覆盖功能磁盘占用上限值，超过上限时连续录像自动删除日有录像，事件录像自动删除非重要事件录像，删除规则为删除距离当日最久日期的连续录像或非重要事件录像。"`
-	AutoRecovery             bool          `default:"false" desc:"是否自动恢复"`
-	ExceptionPostUrl         string        `desc:"第三方异常上报地址"`
-	EventRecordFilePath      string        `desc:"事件录像存放地址"`
+	BeforeDuration            time.Duration `default:"30s" desc:"事件录像提前时长，不配置则默认30s"`
+	AfterDuration             time.Duration `default:"30s" desc:"事件录像结束时长，不配置则默认30s"`
+	RecordFileExpireDays      int           `desc:"录像自动删除的天数,0或未设置表示不自动删除"`
+	DiskMaxPercent            float64       `default:"90" desc:"硬盘使用百分之上限值，超上限后触发报警，并停止当前所有磁盘写入动作。"`
+	AutoOverWriteDiskPercent  float64       `default:"0" desc:"自动覆盖功能磁盘占用上限值，超过上限时连续录像自动删除日有录像，事件录像自动删除非重要事件录像，删除规则为删除距离当日最久日期的连续录像或非重要事件录像。"`
+	MigrationThresholdPercent float64       `default:"60" desc:"开始迁移到次级存储的磁盘使用率阈值，当主存储达到此阈值时自动将文件迁移到次级存储"`
+	AutoRecovery              bool          `default:"false" desc:"是否自动恢复"`
+	ExceptionPostUrl          string        `desc:"第三方异常上报地址"`
+	EventRecordFilePath       string        `desc:"事件录像存放地址"`
 }
 
 const defaultConfig m7s.DefaultYaml = `publish:
@@ -36,8 +36,8 @@ var _ = m7s.InstallPlugin[MP4Plugin](m7s.PluginMeta{
 	DefaultYaml:         defaultConfig,
 	ServiceDesc:         &pb.Api_ServiceDesc,
 	RegisterGRPCHandler: pb.RegisterApiHandler,
-	NewPuller:           pkg.NewPuller,
-	NewRecorder:         pkg.NewRecorder,
+	NewPuller:           mp4pkg.NewPuller,
+	NewRecorder:         mp4pkg.NewRecorder,
 	NewPullProxy:        m7s.NewHTTPPullPorxy,
 })
 
@@ -56,14 +56,19 @@ func (p *MP4Plugin) Start() (err error) {
 		if err != nil {
 			return
 		}
+		err = p.DB.AutoMigrate(&mp4pkg.TagModel{})
+		if err != nil {
+			return
+		}
 		if p.AutoOverWriteDiskPercent > 0 {
-			var deleteRecordTask DeleteRecordTask
-			deleteRecordTask.DB = p.DB
-			deleteRecordTask.DiskMaxPercent = p.DiskMaxPercent
-			deleteRecordTask.AutoOverWriteDiskPercent = p.AutoOverWriteDiskPercent
-			deleteRecordTask.RecordFileExpireDays = p.RecordFileExpireDays
-			deleteRecordTask.plugin = p
-			p.AddTask(&deleteRecordTask)
+			var storageTask StorageManagementTask
+			storageTask.DB = p.DB
+			storageTask.DiskMaxPercent = p.DiskMaxPercent
+			storageTask.AutoOverWriteDiskPercent = p.AutoOverWriteDiskPercent
+			storageTask.MigrationThresholdPercent = p.MigrationThresholdPercent
+			storageTask.RecordFileExpireDays = p.RecordFileExpireDays
+			storageTask.plugin = p
+			p.AddTask(&storageTask)
 		}
 		if p.AutoRecovery {
 			var recoveryTask RecordRecoveryTask
@@ -93,7 +98,12 @@ func (p *MP4Plugin) Start() (err error) {
 }
 
 func (p *MP4Plugin) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	streamPath := strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, "/"), ".mp4")
+	redirectPath := strings.TrimPrefix(r.URL.Path, "/")
+	if p.Server != nil && p.Server.RedirectIfNeeded(w, r, "mp4", redirectPath) {
+		p.Debug("redirect issued", "protocol", "http", "path", redirectPath)
+		return
+	}
+	streamPath := strings.TrimSuffix(redirectPath, ".mp4")
 	if r.URL.RawQuery != "" {
 		streamPath += "?" + r.URL.RawQuery
 	}
@@ -112,13 +122,13 @@ func (p *MP4Plugin) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx.ContentType = "video/mp4"
 	ctx.ServeHTTP(w, r)
 
-	muxer := pkg.NewMuxer(pkg.FLAG_FRAGMENT)
+	muxer := mp4pkg.NewMuxer(mp4pkg.FLAG_FRAGMENT)
 	err = muxer.WriteInitSegment(&ctx)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	var audio, video *pkg.Track
+	var audio, video *mp4pkg.Track
 	var nextFragmentId uint32
 	if sub.Publisher.HasVideoTrack() && sub.SubVideo {
 		v := sub.Publisher.VideoTrack.AVTrack
@@ -175,7 +185,7 @@ func (p *MP4Plugin) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ctx.Flush()
-	m7s.PlayBlock(sub, func(frame *mp4.AudioFrame) (err error) {
+	m7s.PlayBlock(sub, func(frame *mp4pkg.AudioFrame) (err error) {
 		if audio.Samplelist[0].Buffers != nil {
 			audio.Samplelist[0].Duration = sub.AudioReader.AbsTime - audio.Samplelist[0].Timestamp
 			nextFragmentId++
@@ -189,7 +199,7 @@ func (p *MP4Plugin) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		audio.Samplelist[0].Timestamp = sub.AudioReader.AbsTime
 		audio.Samplelist[0].Memory = frame.Memory
 		return
-	}, func(frame *mp4.VideoFrame) (err error) {
+	}, func(frame *mp4pkg.VideoFrame) (err error) {
 		if video.Samplelist[0].Buffers != nil {
 			video.Samplelist[0].Duration = sub.VideoReader.AbsTime - video.Samplelist[0].Timestamp
 			nextFragmentId++

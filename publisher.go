@@ -5,10 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
-	"slices"
 	"sync"
 	"time"
 
+	"github.com/langhuihui/gomem"
 	"m7s.live/v5/pkg/codec"
 
 	. "m7s.live/v5/pkg"
@@ -69,7 +69,7 @@ func (t *AVTracks) GetOrCreate(dataType reflect.Type) *AVTrack {
 }
 
 func (t *AVTracks) CheckTimeout(timeout time.Duration) bool {
-	if t.AVTrack == nil || t.AVTrack.LastValue.WriteTime.IsZero() {
+	if t.AVTrack == nil {
 		return false
 	}
 	return time.Since(t.AVTrack.LastValue.WriteTime) > timeout
@@ -111,6 +111,7 @@ type Publisher struct {
 	OnGetPosition          func() time.Time
 	PullProxyConfig        *PullProxyConfig
 	dropAfterTs            time.Duration
+	bufferTimeCounts       map[time.Duration]int
 }
 
 type PublishParam struct {
@@ -133,6 +134,7 @@ func (p *Publisher) Start() (err error) {
 	if p.MaxCount > 0 && s.Streams.Length >= p.MaxCount {
 		return ErrPublishMaxCount
 	}
+	p.bufferTimeCounts = make(map[time.Duration]int)
 	p.Info("publish")
 	p.processPullProxyOnStart()
 	p.audioReady = util.NewPromiseWithTimeout(p, p.PublishTimeout)
@@ -199,14 +201,25 @@ func (p *Publisher) Go() error {
 
 func (p *Publisher) RemoveSubscriber(subscriber *Subscriber) {
 	p.Subscribers.Remove(subscriber)
+	p.bufferTimeCounts[subscriber.BufferTime]--
+	if p.bufferTimeCounts[subscriber.BufferTime] == 0 {
+		delete(p.bufferTimeCounts, subscriber.BufferTime)
+	}
 	p.Info("subscriber -1", "count", p.Subscribers.Length)
 	if p.Plugin == nil {
 		return
 	}
-	if subscriber.BufferTime == p.BufferTime && p.Subscribers.Length > 0 {
-		p.BufferTime = slices.MaxFunc(p.Subscribers.Items, func(a, b *Subscriber) int {
-			return int(a.BufferTime - b.BufferTime)
-		}).BufferTime
+	if p.Subscribers.Length > 0 {
+		var maxBuf time.Duration
+		for k := range p.bufferTimeCounts {
+			if k > maxBuf {
+				maxBuf = k
+			}
+		}
+		if defaultBuf := p.Plugin.GetCommonConf().Publish.BufferTime; maxBuf < defaultBuf {
+			maxBuf = defaultBuf
+		}
+		p.BufferTime = maxBuf
 	} else {
 		p.BufferTime = p.Plugin.GetCommonConf().Publish.BufferTime
 	}
@@ -234,6 +247,7 @@ func (p *Publisher) AddSubscriber(subscriber *Subscriber) {
 	}
 	subscriber.waitStartTime = time.Time{}
 	if p.Subscribers.AddUnique(subscriber) {
+		p.bufferTimeCounts[subscriber.BufferTime]++
 		p.Info("subscriber +1", "count", p.Subscribers.Length)
 		if subscriber.BufferTime > p.BufferTime {
 			p.BufferTime = subscriber.BufferTime
@@ -621,11 +635,11 @@ func (p *Publisher) GetPosition() (t time.Time) {
 type PublishAudioWriter[A IAVFrame] struct {
 	AudioFrame A
 	*Publisher
-	*util.ScalableMemoryAllocator
+	*gomem.ScalableMemoryAllocator
 	audioTrack *AVTrack
 }
 
-func NewPublishAudioWriter[A IAVFrame](puber *Publisher, allocator *util.ScalableMemoryAllocator) *PublishAudioWriter[A] {
+func NewPublishAudioWriter[A IAVFrame](puber *Publisher, allocator *gomem.ScalableMemoryAllocator) *PublishAudioWriter[A] {
 	if !puber.PubAudio {
 		return nil
 	}
@@ -673,11 +687,11 @@ func (pw *PublishAudioWriter[A]) NextAudio() (err error) {
 type PublishVideoWriter[V IAVFrame] struct {
 	VideoFrame V
 	*Publisher
-	*util.ScalableMemoryAllocator
+	*gomem.ScalableMemoryAllocator
 	videoTrack *AVTrack
 }
 
-func NewPublishVideoWriter[V IAVFrame](puber *Publisher, allocator *util.ScalableMemoryAllocator) *PublishVideoWriter[V] {
+func NewPublishVideoWriter[V IAVFrame](puber *Publisher, allocator *gomem.ScalableMemoryAllocator) *PublishVideoWriter[V] {
 	if !puber.PubVideo {
 		return nil
 	}
@@ -727,7 +741,7 @@ type PublishWriter[A IAVFrame, V IAVFrame] struct {
 	*PublishVideoWriter[V]
 }
 
-func NewPublisherWriter[A IAVFrame, V IAVFrame](puber *Publisher, allocator *util.ScalableMemoryAllocator) *PublishWriter[A, V] {
+func NewPublisherWriter[A IAVFrame, V IAVFrame](puber *Publisher, allocator *gomem.ScalableMemoryAllocator) *PublishWriter[A, V] {
 	return &PublishWriter[A, V]{
 		PublishAudioWriter: NewPublishAudioWriter[A](puber, allocator),
 		PublishVideoWriter: NewPublishVideoWriter[V](puber, allocator),

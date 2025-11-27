@@ -1,19 +1,20 @@
 package mp4
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"time"
 
+	task "github.com/langhuihui/gotask"
 	m7s "m7s.live/v5"
 	"m7s.live/v5/pkg"
 	"m7s.live/v5/pkg/codec"
 	"m7s.live/v5/pkg/config"
-	"m7s.live/v5/pkg/task"
+	"m7s.live/v5/pkg/storage"
 	"m7s.live/v5/plugin/mp4/pkg/box"
-	s3plugin "m7s.live/v5/plugin/s3"
 )
 
 type WriteTrailerQueueTask struct {
@@ -25,7 +26,7 @@ var writeTrailerQueueTask WriteTrailerQueueTask
 type writeTrailerTask struct {
 	task.Task
 	muxer    *Muxer
-	file     *os.File
+	file     storage.File
 	filePath string
 }
 
@@ -64,6 +65,7 @@ func (t *writeTrailerTask) Run() (err error) {
 	// 复制 mdat box之前的内容
 	_, err = io.CopyN(temp, t.file, int64(t.muxer.mdatOffset)-BeforeMdatData)
 	if err != nil {
+		t.Error("copy file", "err", err)
 		return
 	}
 	for _, track := range t.muxer.Tracks {
@@ -73,6 +75,7 @@ func (t *writeTrailerTask) Run() (err error) {
 	}
 	err = t.muxer.WriteMoov(temp)
 	if err != nil {
+		t.Error("rewrite with moov", "err", err)
 		return
 	}
 	// 复制 mdat box
@@ -104,13 +107,7 @@ func (t *writeTrailerTask) Run() (err error) {
 	if err = temp.Close(); err != nil {
 		t.Error("close temp file", "err", err)
 	}
-	
-	// MP4文件处理完成后，触发S3上传
-	if t.filePath != "" {
-		t.Info("MP4 file processing completed, triggering S3 upload", "filePath", t.filePath)
-		s3plugin.TriggerUpload(t.filePath, false) // 不删除本地文件，让用户配置决定
-	}
-	
+
 	return
 }
 
@@ -125,7 +122,7 @@ func NewRecorder(conf config.Record) m7s.IRecorder {
 type Recorder struct {
 	m7s.DefaultRecorder
 	muxer *Muxer
-	file  *os.File
+	file  storage.File
 }
 
 func (r *Recorder) writeTailer(end time.Time) {
@@ -138,10 +135,8 @@ func (r *Recorder) writeTailer(end time.Time) {
 }
 
 var CustomFileName = func(job *m7s.RecordJob) string {
-	if job.RecConf.Fragment == 0 {
-		return fmt.Sprintf("%s.mp4", job.RecConf.FilePath)
-	}
-	return filepath.Join(job.RecConf.FilePath, fmt.Sprintf("%d.mp4", time.Now().Unix()))
+	now := time.Now()
+	return filepath.Join(job.RecConf.FilePath, fmt.Sprintf("%s_%09d.mp4", time.Now().Local().Format("2006-01-02-15-04-05"), now.Nanosecond()))
 }
 
 func (r *Recorder) createStream(start time.Time) (err error) {
@@ -152,21 +147,48 @@ func (r *Recorder) createStream(start time.Time) (err error) {
 	if err != nil {
 		return
 	}
-	r.file, err = os.Create(r.Event.FilePath)
-	if err != nil {
-		return
+
+	// 注意: 不要在这里关闭旧文件,因为它已经被传递给 writeTrailerTask
+	// writeTrailerTask 会负责关闭旧文件
+	// 直接创建新文件并覆盖 r.file
+
+	// 获取存储实例
+	storage := r.RecordJob.GetStorage()
+
+	if storage != nil {
+		// 使用存储抽象层
+		r.file, err = storage.CreateFile(context.Background(), r.Event.FilePath)
+		if err != nil {
+			return
+		}
+	} else {
+		// 默认本地文件行为
+		// 使用 OpenFile 以读写模式打开,因为 writeTrailerTask.Run() 需要读取文件内容
+		r.file, err = os.OpenFile(r.Event.FilePath, os.O_CREATE|os.O_RDWR|os.O_TRUNC, 0644)
+		if err != nil {
+			return
+		}
 	}
+
 	if r.Event.Type == "fmp4" {
 		r.muxer = NewMuxerWithStreamPath(FLAG_FRAGMENT, r.Event.StreamPath)
 	} else {
 		r.muxer = NewMuxerWithStreamPath(0, r.Event.StreamPath)
 	}
+
 	return r.muxer.WriteInitSegment(r.file)
 }
 
 func (r *Recorder) Dispose() {
 	if r.muxer != nil {
 		r.writeTailer(time.Now())
+		// 注意: 文件的关闭由 writeTrailerTask.Run() 负责
+		// 不在这里关闭,避免在异步任务执行前文件被关闭
+	} else {
+		// 如果没有 muxer,需要在这里关闭文件
+		if r.file != nil {
+			r.file.Close()
+		}
 	}
 }
 
@@ -269,18 +291,18 @@ func (r *Recorder) Run() (err error) {
 
 		if vt == nil {
 			vt = sub.VideoReader.Track
-			switch vt.ICodecCtx.GetBase().(type) {
+			switch video.ICodecCtx.GetBase().(type) {
 			case *codec.H264Ctx:
 				track := r.muxer.AddTrack(box.MP4_CODEC_H264)
 				videoTrack = track
-				track.ICodecCtx = vt.ICodecCtx
+				track.ICodecCtx = video.ICodecCtx
 			case *codec.H265Ctx:
 				track := r.muxer.AddTrack(box.MP4_CODEC_H265)
 				videoTrack = track
-				track.ICodecCtx = vt.ICodecCtx
+				track.ICodecCtx = video.ICodecCtx
 			}
 		}
-		ctx := vt.ICodecCtx.(pkg.IVideoCodecCtx)
+		ctx := video.ICodecCtx.(pkg.IVideoCodecCtx)
 		if videoTrackCtx, ok := videoTrack.ICodecCtx.(pkg.IVideoCodecCtx); ok && videoTrackCtx != ctx {
 			width, height := uint32(ctx.Width()), uint32(ctx.Height())
 			oldWidth, oldHeight := uint32(videoTrackCtx.Width()), uint32(videoTrackCtx.Height())
@@ -295,6 +317,17 @@ func (r *Recorder) Run() (err error) {
 			at, vt = nil, nil
 			if vr := sub.VideoReader; vr != nil {
 				vr.ResetAbsTime()
+				vt = vr.Track
+				switch video.ICodecCtx.GetBase().(type) {
+				case *codec.H264Ctx:
+					track := r.muxer.AddTrack(box.MP4_CODEC_H264)
+					videoTrack = track
+					track.ICodecCtx = video.ICodecCtx
+				case *codec.H265Ctx:
+					track := r.muxer.AddTrack(box.MP4_CODEC_H265)
+					videoTrack = track
+					track.ICodecCtx = video.ICodecCtx
+				}
 			}
 			if ar := sub.AudioReader; ar != nil {
 				ar.ResetAbsTime()

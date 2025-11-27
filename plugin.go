@@ -21,8 +21,6 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"m7s.live/v5/pkg/task"
-
 	"github.com/quic-go/quic-go"
 
 	gatewayRuntime "github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
@@ -30,6 +28,7 @@ import (
 	"google.golang.org/grpc"
 	"gorm.io/gorm"
 
+	task "github.com/langhuihui/gotask"
 	. "m7s.live/v5/pkg"
 	"m7s.live/v5/pkg/config"
 	"m7s.live/v5/pkg/db"
@@ -69,7 +68,6 @@ type (
 		Pull(string, config.Pull, *config.Publish) (*PullJob, error)
 		Push(string, config.Push, *config.Subscribe)
 		Transform(*Publisher, config.Transform)
-		OnPublish(*Publisher)
 	}
 
 	IRegisterHandler interface {
@@ -89,7 +87,15 @@ type (
 	}
 
 	IQUICPlugin interface {
-		OnQUICConnect(quic.Connection) task.ITask
+		OnQUICConnect(*quic.Conn) task.ITask
+	}
+
+	IPublishHookPlugin interface {
+		OnPublish(pub *Publisher)
+	}
+
+	ISubscribeHookPlugin interface {
+		OnSubscribe(streamPath string, args url.Values)
 	}
 )
 
@@ -98,7 +104,7 @@ var plugins []PluginMeta
 func (plugin *PluginMeta) Init(s *Server, userConfig map[string]any) (p *Plugin) {
 	instance, ok := reflect.New(plugin.Type).Interface().(IPlugin)
 	if !ok {
-		panic("plugin must implement IPlugin")
+		panic("plugin " + plugin.Name + " must implement IPlugin")
 	}
 	p = reflect.ValueOf(instance).Elem().FieldByName("Plugin").Addr().Interface().(*Plugin)
 	p.handler = instance
@@ -343,7 +349,6 @@ var webHookQueueTask WebHookQueueTask
 type WebHookTask struct {
 	task.Task
 	plugin   *Plugin
-	hookType config.HookType
 	conf     config.Webhook
 	data     any
 	jsonData []byte
@@ -479,7 +484,7 @@ func (p *Plugin) SendWebhook(conf config.Webhook, data any) *task.Task {
 }
 
 // TODO: use alias stream
-func (p *Plugin) OnPublish(pub *Publisher) {
+func (p *Plugin) onPublish(pub *Publisher) {
 	onPublish := p.config.OnPub
 	if p.Meta.NewPusher != nil {
 		for r, pushConf := range onPublish.Push {
@@ -517,6 +522,9 @@ func (p *Plugin) OnPublish(pub *Publisher) {
 			}
 		}
 	}
+	if publishHookPlugin, ok := p.handler.(IPublishHookPlugin); ok {
+		publishHookPlugin.OnPublish(pub)
+	}
 }
 
 func (p *Plugin) auth(streamPath string, key string, secret string, expire string) (err error) {
@@ -533,7 +541,7 @@ func (p *Plugin) auth(streamPath string, key string, secret string, expire strin
 	return fmt.Errorf("auth failed invalid secret")
 }
 
-func (p *Plugin) OnSubscribe(streamPath string, args url.Values) {
+func (p *Plugin) onSubscribe(streamPath string, args url.Values) {
 	//	var avoidTrans bool
 	//AVOID:
 	//	for trans := range server.Transforms.Range {
@@ -555,7 +563,9 @@ func (p *Plugin) OnSubscribe(streamPath string, args url.Values) {
 			}
 		}
 	}
-
+	if subscribeHookPlugin, ok := p.handler.(ISubscribeHookPlugin); ok {
+		subscribeHookPlugin.OnSubscribe(streamPath, args)
+	}
 	//if !avoidTrans {
 	//	for reg, conf := range plugin.GetCommonConf().OnSub.Transform {
 	//		if plugin.Meta.Transformer != nil {

@@ -8,8 +8,8 @@ import (
 
 	sipgo "github.com/emiago/sipgo"
 	"github.com/emiago/sipgo/sip"
+	task "github.com/langhuihui/gotask"
 	m7s "m7s.live/v5"
-	"m7s.live/v5/pkg/task"
 	"m7s.live/v5/pkg/util"
 	gb28181 "m7s.live/v5/plugin/gb28181/pkg"
 	mrtp "m7s.live/v5/plugin/rtp/pkg"
@@ -77,19 +77,24 @@ func (d *ForwardDialog) Start() (err error) {
 	// 注册对话到集合，使用类型转换
 	d.MediaPort = uint16(0)
 
+	d.Debug("ForwardDialog端口分配", "device.StreamMode", device.StreamMode, "StreamModeTCPActive", mrtp.StreamModeTCPActive)
+
 	if device.StreamMode != mrtp.StreamModeTCPActive {
 		if d.gb.MediaPort.Valid() {
-			select {
-			case d.MediaPort = <-d.gb.tcpPorts:
-				defer func() {
-					d.gb.tcpPorts <- d.MediaPort
-				}()
-			default:
+			d.Debug("ForwardDialog端口分配路径", "path", "tcpPB.Allocate()", "MediaPort.Valid", true)
+			var ok bool
+			d.MediaPort, ok = d.gb.tcpPB.Allocate()
+			if !ok {
 				return fmt.Errorf("no available tcp port")
 			}
+			d.Debug("ForwardDialog端口分配成功", "allocatedPort", d.MediaPort)
 		} else {
+			d.Debug("ForwardDialog端口分配路径", "path", "MediaPort[0]", "MediaPort.Valid", false)
 			d.MediaPort = d.gb.MediaPort[0]
+			d.Debug("ForwardDialog端口分配成功", "defaultPort", d.MediaPort)
 		}
+	} else {
+		d.Debug("ForwardDialog端口分配", "path", "StreamModeTCPActive，不分配端口", "MediaPort", d.MediaPort)
 	}
 
 	// 使用上级平台的SSRC（如果有）或者设备的CreateSSRC方法
@@ -183,15 +188,6 @@ func (d *ForwardDialog) Start() (err error) {
 	recipient := device.Recipient
 	recipient.User = channelId
 
-	viaHeader := sip.ViaHeader{
-		ProtocolName:    "SIP",
-		ProtocolVersion: "2.0",
-		Transport:       "UDP",
-		Host:            device.SipIp,
-		Port:            device.LocalPort,
-		Params:          sip.HeaderParams(sip.NewParams()),
-	}
-	viaHeader.Params.Add("branch", sip.GenerateBranchN(16)).Add("rport", "")
 	fromHDR := sip.FromHeader{
 		Address: sip.Uri{
 			User: d.gb.Serial,
@@ -204,17 +200,36 @@ func (d *ForwardDialog) Start() (err error) {
 		Address: sip.Uri{User: channelId, Host: channelId[0:10]},
 	}
 	fromHDR.Params.Add("tag", sip.GenerateTagN(16))
+
+	// 输出设备Transport信息用于调试
+	d.Info("ForwardDialog准备发送INVITE", "deviceId", device.DeviceId, "device.Transport", device.Transport, "device.SipIp", device.SipIp, "device.LocalPort", device.LocalPort)
+
 	// 创建会话 - 使用device的dialogClient创建
 	dialogClientCache := sipgo.NewDialogClientCache(device.client, device.contactHDR)
-	d.Info("start to invite", "recipient:", recipient, " viaHeader:", viaHeader, " fromHDR:", fromHDR, " toHeader:", toHeader, " device.contactHDR:", device.contactHDR, "contactHDR:", device.contactHDR)
-	//d.session, err = dialogClientCache.Invite(d.gb, recipient, request.Body(), &fromHDR, &toHeader, &viaHeader, subjectHeader, &contentTypeHeader)
-	d.session, err = dialogClientCache.Invite(d.gb, recipient, []byte(strings.Join(sdpInfo, "\r\n")+"\r\n"), &fromHDR, &toHeader, subjectHeader, &contentTypeHeader)
+	d.Info("start to invite", "recipient:", recipient, " fromHDR:", fromHDR, " toHeader:", toHeader, " device.contactHDR:", device.contactHDR, "contactHDR:", device.contactHDR)
+
+	// 创建Via头部，使用设备的Transport协议
+	// Via头部必须放在第一个位置
+	viaHeader := &sip.ViaHeader{
+		ProtocolName:    "SIP",
+		ProtocolVersion: "2.0",
+		Transport:       device.Transport, // 使用设备注册时的Transport
+		Host:            device.SipIp,
+		Port:            device.LocalPort,
+		Params:          sip.HeaderParams(sip.NewParams()),
+	}
+	viaHeader.Params.Add("branch", sip.GenerateBranchN(16))
+
+	d.Info("ForwardDialog发送INVITE使用Transport", "transport", device.Transport, "via", viaHeader)
+
+	// Via头部必须是第一个参数！
+	d.session, err = dialogClientCache.Invite(d, recipient, []byte(strings.Join(sdpInfo, "\r\n")+"\r\n"), viaHeader, &fromHDR, &toHeader, subjectHeader, &contentTypeHeader)
 	return
 }
 
 // Run 运行会话
 func (d *ForwardDialog) Run() (err error) {
-	err = d.session.WaitAnswer(d.gb, sipgo.AnswerOptions{})
+	err = d.session.WaitAnswer(d, sipgo.AnswerOptions{})
 	if err != nil {
 		return
 	}
@@ -254,11 +269,9 @@ func (d *ForwardDialog) Run() (err error) {
 		}
 	}
 	if d.session.InviteResponse.Contact() != nil {
-		if &d.session.InviteRequest.Recipient != &d.session.InviteResponse.Contact().Address {
-			d.session.InviteResponse.Contact().Address = d.session.InviteRequest.Recipient
-		}
+		d.session.InviteResponse.Contact().Address = d.session.InviteRequest.Recipient
 	}
-	err = d.session.Ack(d.gb)
+	err = d.session.Ack(d)
 	if err != nil {
 		d.Error("ack session err", err)
 		d.Stop(errors.New("ack session err" + err.Error()))
@@ -283,6 +296,12 @@ func (d *ForwardDialog) Run() (err error) {
 
 // Dispose 释放会话资源
 func (d *ForwardDialog) Dispose() {
+	// 回收端口（如果是多端口模式）
+	if d.MediaPort > 0 && d.gb.tcpPort == 0 {
+		if !d.gb.tcpPB.Release(d.MediaPort) {
+			d.Warn("port already released or not allocated", "port", d.MediaPort, "type", "tcp")
+		}
+	}
 	if d.session != nil && d.session.InviteResponse != nil {
 		err := d.session.Bye(d)
 		if err != nil {

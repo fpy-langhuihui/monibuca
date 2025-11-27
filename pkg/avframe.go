@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/bluenviron/mediacommon/pkg/codecs/av1"
+	"github.com/langhuihui/gomem"
 	"m7s.live/v5/pkg/codec"
 	"m7s.live/v5/pkg/util"
 )
@@ -43,14 +44,14 @@ type (
 	}
 	Sample struct {
 		codec.ICodecCtx
-		util.RecyclableMemory
+		gomem.RecyclableMemory
 		*BaseSample
 	}
-	Nalus = util.ReuseArray[util.Memory]
+	Nalus = util.ReuseArray[gomem.Memory]
 
-	AudioData = util.Memory
+	AudioData = gomem.Memory
 
-	OBUs AudioData
+	OBUs = util.ReuseArray[gomem.Memory]
 
 	AVFrame struct {
 		DataFrame
@@ -147,6 +148,13 @@ func (b *BaseSample) GetNalus() *Nalus {
 	return b.Raw.(*Nalus)
 }
 
+func (b *BaseSample) GetOBUs() *OBUs {
+	if b.Raw == nil {
+		b.Raw = &OBUs{}
+	}
+	return b.Raw.(*OBUs)
+}
+
 func (b *BaseSample) GetAudioData() *AudioData {
 	if b.Raw == nil {
 		b.Raw = &AudioData{}
@@ -154,7 +162,7 @@ func (b *BaseSample) GetAudioData() *AudioData {
 	return b.Raw.(*AudioData)
 }
 
-func (b *BaseSample) ParseAVCC(reader *util.MemoryReader, naluSizeLen int) error {
+func (b *BaseSample) ParseAVCC(reader *gomem.MemoryReader, naluSizeLen int) error {
 	array := b.GetNalus()
 	for reader.Length > 0 {
 		l, err := reader.ReadBE(naluSizeLen)
@@ -202,39 +210,31 @@ func (df *DataFrame) Ready() {
 	df.Unlock()
 }
 
-func (obus *OBUs) ParseAVCC(reader *util.MemoryReader) error {
+func (b *BaseSample) ParseAV1OBUs(reader *gomem.MemoryReader) error {
 	var obuHeader av1.OBUHeader
 	startLen := reader.Length
 	for reader.Length > 0 {
 		offset := reader.Size - reader.Length
-		b, err := reader.ReadByte()
+		b0, err := reader.ReadByte()
 		if err != nil {
 			return err
 		}
-		err = obuHeader.Unmarshal([]byte{b})
+		err = obuHeader.Unmarshal([]byte{b0})
 		if err != nil {
 			return err
 		}
 		// if log.Trace {
-		// 	vt.Trace("obu", zap.Any("type", obuHeader.Type), zap.Bool("iframe", vt.Value.IFrame))
+		//     vt.Trace("obu", zap.Any("type", obuHeader.Type), zap.Bool("iframe", vt.Value.IFrame))
 		// }
 		obuSize, _, _ := reader.LEB128Unmarshal()
 		end := reader.Size - reader.Length
 		size := end - offset + int(obuSize)
-		reader = &util.MemoryReader{Memory: reader.Memory, Length: startLen - offset}
+		reader = &gomem.MemoryReader{Memory: reader.Memory, Length: startLen - offset}
 		obu, err := reader.ReadBytes(size)
 		if err != nil {
 			return err
 		}
-		(*AudioData)(obus).PushOne(obu)
+		b.GetNalus().GetNextPointer().PushOne(obu)
 	}
 	return nil
-}
-
-func (obus *OBUs) Reset() {
-	((*util.Memory)(obus)).Reset()
-}
-
-func (obus *OBUs) Count() int {
-	return (*util.Memory)(obus).Count()
 }

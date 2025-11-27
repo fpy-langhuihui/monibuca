@@ -8,6 +8,7 @@ import (
 	"unsafe"
 
 	"github.com/bluenviron/mediacommon/pkg/bits"
+	"github.com/langhuihui/gomem"
 
 	"github.com/pion/rtp"
 	"github.com/pion/webrtc/v4"
@@ -152,7 +153,7 @@ func (r *AudioFrame) Demux() (err error) {
 	}
 	switch mimeType {
 	case "audio/MP4A-LATM":
-		var fragments util.Memory
+		var fragments gomem.Memory
 		var fragmentsExpected int
 		var fragmentsSize int
 		for packet := range r.Packets.RangePoint {
@@ -177,7 +178,7 @@ func (r *AudioFrame) Demux() (err error) {
 					// there could be other data, due to otherDataPresent. Ignore it.
 				} else {
 					if pl > 5*1024 {
-						fragments = util.Memory{} // discard pending fragments
+						fragments = gomem.Memory{} // discard pending fragments
 						return fmt.Errorf("access unit size (%d) is too big, maximum is %d",
 							pl, 5*1024)
 					}
@@ -202,11 +203,11 @@ func (r *AudioFrame) Demux() (err error) {
 				if fragments.Size != fragmentsSize {
 					return fmt.Errorf("fragmented AU size is not correct %d != %d", data.Size, fragmentsSize)
 				}
-				fragments = util.Memory{}
+				fragments = gomem.Memory{}
 			}
 		}
 	case "audio/MPEG4-GENERIC":
-		var fragments util.Memory
+		var fragments gomem.Memory
 		for packet := range r.Packets.RangePoint {
 			if len(packet.Payload) < 2 {
 				continue
@@ -252,7 +253,7 @@ func (r *AudioFrame) Demux() (err error) {
 						return fmt.Errorf("fragmented AU size is not correct %d != %d", dataLens[0], fragments.Size)
 					}
 					data.Push(fragments.Buffers...)
-					fragments = util.Memory{}
+					fragments = gomem.Memory{}
 				}
 			}
 			break
@@ -272,7 +273,7 @@ func (r *AudioFrame) Mux(from *Sample) (err error) {
 	switch base := from.GetBase().(type) {
 	case *codec.AACCtx:
 		var c *AACCtx
-		if r.ICodecCtx == nil {
+		if r.ICodecCtx == nil || r.ICodecCtx.GetBase() != base {
 			c = &AACCtx{}
 			c.SSRC = uint32(uintptr(unsafe.Pointer(&ctx)))
 			c.AACCtx = base
@@ -305,7 +306,7 @@ func (r *AudioFrame) Mux(from *Sample) (err error) {
 		lastPacket.Header.Marker = true
 		return
 	case *codec.PCMACtx:
-		if r.ICodecCtx == nil {
+		if r.ICodecCtx == nil || r.ICodecCtx != base {
 			var ctx PCMACtx
 			ctx.SSRC = uint32(uintptr(unsafe.Pointer(&ctx)))
 			ctx.PCMACtx = base
@@ -316,7 +317,7 @@ func (r *AudioFrame) Mux(from *Sample) (err error) {
 		}
 		ctx = &r.ICodecCtx.(*PCMACtx).RTPCtx
 	case *codec.PCMUCtx:
-		if r.ICodecCtx == nil {
+		if r.ICodecCtx == nil || r.ICodecCtx != base {
 			var ctx PCMUCtx
 			ctx.SSRC = uint32(uintptr(unsafe.Pointer(&ctx)))
 			ctx.PCMUCtx = base

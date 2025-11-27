@@ -12,14 +12,15 @@ import (
 	"path/filepath"
 	"runtime/debug"
 	"strings"
+	"sync"
 	"time"
 
 	"gopkg.in/yaml.v3"
 
 	"github.com/shirou/gopsutil/v4/cpu"
 
+	task "github.com/langhuihui/gotask"
 	"m7s.live/v5/pkg/config"
-	"m7s.live/v5/pkg/task"
 
 	sysruntime "runtime"
 
@@ -30,13 +31,10 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
-	"google.golang.org/grpc/metadata"
 	"gorm.io/gorm"
 	"m7s.live/v5/pb"
 	. "m7s.live/v5/pkg"
-	"m7s.live/v5/pkg/auth"
 	"m7s.live/v5/pkg/db"
-	"m7s.live/v5/pkg/format"
 	"m7s.live/v5/pkg/util"
 )
 
@@ -101,7 +99,7 @@ type (
 
 		ServerConfig
 		Plugins           util.Collection[string, *Plugin]
-		Streams           task.Manager[string, *Publisher]
+		Streams           util.Manager[string, *Publisher]
 		AliasStreams      util.Collection[string, *AliasStream]
 		Waiting           WaitManager
 		Pulls             task.WorkCollection[string, *PullJob]
@@ -112,6 +110,8 @@ type (
 		PushProxies       PushProxyManager
 		Subscribers       SubscriberCollection
 		LogHandler        MultiLogHandler
+		redirectAdvisor   RedirectAdvisor
+		redirectOnce      sync.Once
 		apiList           []string
 		grpcServer        *grpc.Server
 		grpcClientConn    *grpc.ClientConn
@@ -127,19 +127,7 @@ type (
 		task.TickTask
 		s *Server
 	}
-	GRPCServer struct {
-		task.Task
-		s       *Server
-		tcpTask *config.ListenTCPWork
-	}
 	RawConfig = map[string]map[string]any
-)
-
-// context key type & keys
-type ctxKey int
-
-const (
-	ctxKeyClaims ctxKey = iota
 )
 
 func (w *WaitStream) GetKey() string {
@@ -299,6 +287,10 @@ func (s *Server) Start() (err error) {
 				s.Error("failed to connect database", "error", err, "dsn", s.config.DSN, "type", s.config.DBType)
 				return
 			}
+			sqlDB, _ := s.DB.DB()
+			sqlDB.SetMaxIdleConns(25)
+			sqlDB.SetMaxOpenConns(100)
+			sqlDB.SetConnMaxLifetime(5 * time.Minute)
 			// Auto-migrate models
 			if err = s.DB.AutoMigrate(&db.User{}, &PullProxyConfig{}, &PushProxyConfig{}, &StreamAliasDB{}, &AlarmInfo{}); err != nil {
 				s.Error("failed to auto-migrate models", "error", err)
@@ -436,7 +428,7 @@ func (s *Server) Start() (err error) {
 			}
 			if plugin.Meta.NewTransformer != nil {
 				for streamPath := range plugin.config.Transform {
-					plugin.OnSubscribe(streamPath, url.Values{}) //按需转换
+					plugin.onSubscribe(streamPath, url.Values{}) //按需转换
 					// transformer := plugin.Meta.Transformer()
 					// transformer.GetTransformJob().Init(transformer, plugin, streamPath, conf)
 				}
@@ -498,6 +490,9 @@ func (s *Server) initPullProxies() {
 	for _, proxy := range pullProxies {
 		if proxy.CheckInterval == 0 {
 			proxy.CheckInterval = time.Second * 10
+		}
+		if proxy.PullOnStart {
+			proxy.Pull.MaxRetry = -1
 		}
 		if proxy.Status != PullProxyStatusDisabled {
 			s.createPullProxy(proxy)
@@ -579,14 +574,6 @@ func (c *CheckSubWaitTimeout) Tick(any) {
 	c.s.Waiting.checkTimeout()
 }
 
-func (gRPC *GRPCServer) Dispose() {
-	gRPC.s.Stop(gRPC.StopReason())
-}
-
-func (gRPC *GRPCServer) Go() (err error) {
-	return gRPC.s.grpcServer.Serve(gRPC.tcpTask.Listener)
-}
-
 func (s *Server) CallOnStreamTask(callback func()) {
 	s.Streams.Call(callback)
 }
@@ -614,7 +601,7 @@ func (s *Server) GetPublisher(streamPath string) (publisher *Publisher, err erro
 
 func (s *Server) OnPublish(p *Publisher) {
 	for plugin := range s.Plugins.Range {
-		plugin.OnPublish(p)
+		plugin.onPublish(p)
 	}
 	for pushProxy := range s.PushProxies.Range {
 		conf := pushProxy.GetConfig()
@@ -626,7 +613,7 @@ func (s *Server) OnPublish(p *Publisher) {
 
 func (s *Server) OnSubscribe(streamPath string, args url.Values) {
 	for plugin := range s.Plugins.Range {
-		plugin.OnSubscribe(streamPath, args)
+		plugin.onSubscribe(streamPath, args)
 	}
 	for pullProxy := range s.PullProxies.Range {
 		conf := pullProxy.GetConfig()
@@ -637,233 +624,4 @@ func (s *Server) OnSubscribe(streamPath string, args url.Values) {
 			}
 		}
 	}
-}
-
-func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	// Check for location-based forwarding first
-	if s.Location != nil {
-		for pattern, target := range s.Location {
-			if pattern.MatchString(r.URL.Path) {
-				// Rewrite the URL path and handle locally
-				r.URL.Path = pattern.ReplaceAllString(r.URL.Path, target)
-				// Forward to local handler
-				s.config.HTTP.GetHandler(s.Logger).ServeHTTP(w, r)
-				return
-			}
-		}
-	}
-
-	// 检查 admin.zip 是否需要重新加载
-	now := time.Now()
-	if now.Sub(s.Admin.lastCheckTime) > checkInterval {
-		if info, err := os.Stat(s.Admin.FilePath); err == nil && info.ModTime() != s.Admin.zipLastModTime {
-			s.Info("admin.zip changed, reloading...")
-			s.loadAdminZip()
-		}
-		s.Admin.lastCheckTime = now
-	}
-
-	if s.Admin.zipReader != nil {
-		// Handle root path redirect to HomePage
-		if r.URL.Path == "/" {
-			http.Redirect(w, r, "/admin/#/"+s.Admin.HomePage, http.StatusFound)
-			return
-		}
-
-		http.ServeFileFS(w, r, s.Admin.zipReader, strings.TrimPrefix(r.URL.Path, "/admin"))
-		return
-	}
-	if r.URL.Path == "/favicon.ico" {
-		http.ServeFile(w, r, "favicon.ico")
-		return
-	}
-	_, _ = fmt.Fprintf(w, "visit:%s\nMonibuca Engine %s StartTime:%s\n", r.URL.Path, Version, s.StartTime)
-	for plugin := range s.Plugins.Range {
-		_, _ = fmt.Fprintf(w, "Plugin %s Version:%s\n", plugin.Meta.Name, plugin.Meta.Version)
-	}
-	for _, api := range s.apiList {
-		_, _ = fmt.Fprintf(w, "%s\n", api)
-	}
-}
-
-// ValidateToken implements auth.TokenValidator
-func (s *Server) ValidateToken(tokenString string) (*auth.JWTClaims, error) {
-	if !s.ServerConfig.Admin.EnableLogin {
-		return &auth.JWTClaims{Username: "anonymous"}, nil
-	}
-	return auth.ValidateJWT(tokenString)
-}
-
-// Login implements the Login RPC method
-func (s *Server) Login(ctx context.Context, req *pb.LoginRequest) (res *pb.LoginResponse, err error) {
-	res = &pb.LoginResponse{}
-	if !s.ServerConfig.Admin.EnableLogin {
-		res.Data = &pb.LoginSuccess{
-			Token: "monibuca",
-			UserInfo: &pb.UserInfo{
-				Username:  "anonymous",
-				ExpiresAt: time.Now().Add(24 * time.Hour).Unix(),
-			},
-		}
-		return
-	}
-	if s.DB == nil {
-		err = ErrNoDB
-		return
-	}
-	var user db.User
-	if err = s.DB.Where("username = ?", req.Username).First(&user).Error; err != nil {
-		return
-	}
-
-	if !user.CheckPassword(req.Password) {
-		err = ErrInvalidCredentials
-		return
-	}
-
-	// Generate JWT token
-	var tokenString string
-	tokenString, err = auth.GenerateToken(user.Username)
-	if err != nil {
-		return
-	}
-
-	// Update last login time
-	s.DB.Model(&user).Update("last_login", time.Now())
-	res.Data = &pb.LoginSuccess{
-		Token: tokenString,
-		UserInfo: &pb.UserInfo{
-			Username:  user.Username,
-			ExpiresAt: time.Now().Add(24 * time.Hour).Unix(),
-		},
-	}
-	return
-}
-
-// Logout implements the Logout RPC method
-func (s *Server) Logout(ctx context.Context, req *pb.LogoutRequest) (res *pb.LogoutResponse, err error) {
-	// In a more complex system, you might want to maintain a blacklist of logged-out tokens
-	// For now, we'll just return success as JWT tokens are stateless
-	res = &pb.LogoutResponse{Code: 0, Message: "success"}
-	return
-}
-
-// GetUserInfo implements the GetUserInfo RPC method
-func (s *Server) GetUserInfo(ctx context.Context, req *pb.UserInfoRequest) (res *pb.UserInfoResponse, err error) {
-	if !s.ServerConfig.Admin.EnableLogin {
-		res = &pb.UserInfoResponse{
-			Code:    0,
-			Message: "success",
-			Data: &pb.UserInfo{
-				Username:  "anonymous",
-				ExpiresAt: time.Now().Add(24 * time.Hour).Unix(),
-			},
-		}
-		return
-	}
-	res = &pb.UserInfoResponse{}
-	claims, err := s.ValidateToken(req.Token)
-	if err != nil {
-		err = ErrInvalidCredentials
-		return
-	}
-
-	var user db.User
-	if err = s.DB.Where("username = ?", claims.Username).First(&user).Error; err != nil {
-		return
-	}
-
-	// Token is valid for 24 hours from now
-	expiresAt := time.Now().Add(24 * time.Hour).Unix()
-
-	return &pb.UserInfoResponse{
-		Code:    0,
-		Message: "success",
-		Data: &pb.UserInfo{
-			Username:  user.Username,
-			ExpiresAt: expiresAt,
-		},
-	}, nil
-}
-
-// AuthInterceptor creates a new unary interceptor for authentication
-func (s *Server) AuthInterceptor() grpc.UnaryServerInterceptor {
-	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
-		if !s.ServerConfig.Admin.EnableLogin {
-			return handler(ctx, req)
-		}
-
-		// Skip auth for login endpoint
-		if info.FullMethod == "/pb.Auth/Login" {
-			return handler(ctx, req)
-		}
-
-		md, ok := metadata.FromIncomingContext(ctx)
-		if !ok {
-			return nil, errors.New("missing metadata")
-		}
-
-		authHeader := md.Get("authorization")
-		if len(authHeader) == 0 {
-			return nil, errors.New("missing authorization header")
-		}
-
-		tokenString := strings.TrimPrefix(authHeader[0], "Bearer ")
-		claims, err := s.ValidateToken(tokenString)
-		if err != nil {
-			return nil, errors.New("invalid token")
-		}
-
-		// Check if token needs refresh
-		shouldRefresh, err := auth.ShouldRefreshToken(tokenString)
-		if err == nil && shouldRefresh {
-			newToken, err := auth.RefreshToken(tokenString)
-			if err == nil {
-				// Add new token to response headers
-				header := metadata.New(map[string]string{
-					"new-token": newToken,
-				})
-				grpc.SetHeader(ctx, header)
-			}
-		}
-
-		// Add claims to context
-		newCtx := context.WithValue(ctx, ctxKeyClaims, claims)
-		return handler(newCtx, req)
-	}
-}
-
-func (s *Server) annexB(w http.ResponseWriter, r *http.Request) {
-	streamPath := r.PathValue("streamPath")
-
-	if r.URL.RawQuery != "" {
-		streamPath += "?" + r.URL.RawQuery
-	}
-	var conf = s.config.Subscribe
-	conf.SubType = SubscribeTypeServer
-	conf.SubAudio = false
-	suber, err := s.SubscribeWithConfig(r.Context(), streamPath, conf)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	var ctx util.HTTP_WS_Writer
-	ctx.Conn, err = suber.CheckWebSocket(w, r)
-	if err != nil {
-		return
-	}
-	ctx.WriteTimeout = s.GetCommonConf().WriteTimeout
-	ctx.ContentType = "application/octet-stream"
-	ctx.ServeHTTP(w, r)
-
-	PlayBlock(suber, func(frame *format.RawAudio) (err error) {
-		return nil
-	}, func(frame *format.AnnexB) (err error) {
-		_, err = frame.WriteTo(&ctx)
-		if err != nil {
-			return
-		}
-		return ctx.Flush()
-	})
 }

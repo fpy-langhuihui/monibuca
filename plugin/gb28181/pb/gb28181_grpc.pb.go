@@ -89,6 +89,11 @@ const (
 	Api_GetGroupChannels_FullMethodName                  = "/gb28181pro.api/GetGroupChannels"
 	Api_RemoveDevice_FullMethodName                      = "/gb28181pro.api/RemoveDevice"
 	Api_ReceiveAlarm_FullMethodName                      = "/gb28181pro.api/ReceiveAlarm"
+	Api_AddChannelWithProxy_FullMethodName               = "/gb28181pro.api/AddChannelWithProxy"
+	Api_UpdateChannelWithProxy_FullMethodName            = "/gb28181pro.api/UpdateChannelWithProxy"
+	Api_DeleteChannelWithProxy_FullMethodName            = "/gb28181pro.api/DeleteChannelWithProxy"
+	Api_StartDownload_FullMethodName                     = "/gb28181pro.api/StartDownload"
+	Api_GetDownloadProgress_FullMethodName               = "/gb28181pro.api/GetDownloadProgress"
 )
 
 // ApiClient is the client API for Api service.
@@ -229,6 +234,16 @@ type ApiClient interface {
 	RemoveDevice(ctx context.Context, in *RemoveDeviceRequest, opts ...grpc.CallOption) (*BaseResponse, error)
 	// 接收报警信息
 	ReceiveAlarm(ctx context.Context, in *AlarmInfoRequest, opts ...grpc.CallOption) (*BaseResponse, error)
+	// 添加通道并关联拉流代理
+	AddChannelWithProxy(ctx context.Context, in *AddChannelWithProxyRequest, opts ...grpc.CallOption) (*BaseResponse, error)
+	// 更新通道信息
+	UpdateChannelWithProxy(ctx context.Context, in *UpdateChannelWithProxyRequest, opts ...grpc.CallOption) (*BaseResponse, error)
+	// 删除通道
+	DeleteChannelWithProxy(ctx context.Context, in *DeleteChannelWithProxyRequest, opts ...grpc.CallOption) (*BaseResponse, error)
+	// 发起录像下载
+	StartDownload(ctx context.Context, in *StartDownloadRequest, opts ...grpc.CallOption) (*StartDownloadResponse, error)
+	// 查询下载进度
+	GetDownloadProgress(ctx context.Context, in *GetDownloadProgressRequest, opts ...grpc.CallOption) (*DownloadProgressResponse, error)
 }
 
 type apiClient struct {
@@ -909,6 +924,56 @@ func (c *apiClient) ReceiveAlarm(ctx context.Context, in *AlarmInfoRequest, opts
 	return out, nil
 }
 
+func (c *apiClient) AddChannelWithProxy(ctx context.Context, in *AddChannelWithProxyRequest, opts ...grpc.CallOption) (*BaseResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(BaseResponse)
+	err := c.cc.Invoke(ctx, Api_AddChannelWithProxy_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *apiClient) UpdateChannelWithProxy(ctx context.Context, in *UpdateChannelWithProxyRequest, opts ...grpc.CallOption) (*BaseResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(BaseResponse)
+	err := c.cc.Invoke(ctx, Api_UpdateChannelWithProxy_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *apiClient) DeleteChannelWithProxy(ctx context.Context, in *DeleteChannelWithProxyRequest, opts ...grpc.CallOption) (*BaseResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(BaseResponse)
+	err := c.cc.Invoke(ctx, Api_DeleteChannelWithProxy_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *apiClient) StartDownload(ctx context.Context, in *StartDownloadRequest, opts ...grpc.CallOption) (*StartDownloadResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(StartDownloadResponse)
+	err := c.cc.Invoke(ctx, Api_StartDownload_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *apiClient) GetDownloadProgress(ctx context.Context, in *GetDownloadProgressRequest, opts ...grpc.CallOption) (*DownloadProgressResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DownloadProgressResponse)
+	err := c.cc.Invoke(ctx, Api_GetDownloadProgress_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ApiServer is the server API for Api service.
 // All implementations must embed UnimplementedApiServer
 // for forward compatibility.
@@ -1047,6 +1112,16 @@ type ApiServer interface {
 	RemoveDevice(context.Context, *RemoveDeviceRequest) (*BaseResponse, error)
 	// 接收报警信息
 	ReceiveAlarm(context.Context, *AlarmInfoRequest) (*BaseResponse, error)
+	// 添加通道并关联拉流代理
+	AddChannelWithProxy(context.Context, *AddChannelWithProxyRequest) (*BaseResponse, error)
+	// 更新通道信息
+	UpdateChannelWithProxy(context.Context, *UpdateChannelWithProxyRequest) (*BaseResponse, error)
+	// 删除通道
+	DeleteChannelWithProxy(context.Context, *DeleteChannelWithProxyRequest) (*BaseResponse, error)
+	// 发起录像下载
+	StartDownload(context.Context, *StartDownloadRequest) (*StartDownloadResponse, error)
+	// 查询下载进度
+	GetDownloadProgress(context.Context, *GetDownloadProgressRequest) (*DownloadProgressResponse, error)
 	mustEmbedUnimplementedApiServer()
 }
 
@@ -1257,6 +1332,21 @@ func (UnimplementedApiServer) RemoveDevice(context.Context, *RemoveDeviceRequest
 }
 func (UnimplementedApiServer) ReceiveAlarm(context.Context, *AlarmInfoRequest) (*BaseResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ReceiveAlarm not implemented")
+}
+func (UnimplementedApiServer) AddChannelWithProxy(context.Context, *AddChannelWithProxyRequest) (*BaseResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method AddChannelWithProxy not implemented")
+}
+func (UnimplementedApiServer) UpdateChannelWithProxy(context.Context, *UpdateChannelWithProxyRequest) (*BaseResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdateChannelWithProxy not implemented")
+}
+func (UnimplementedApiServer) DeleteChannelWithProxy(context.Context, *DeleteChannelWithProxyRequest) (*BaseResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteChannelWithProxy not implemented")
+}
+func (UnimplementedApiServer) StartDownload(context.Context, *StartDownloadRequest) (*StartDownloadResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method StartDownload not implemented")
+}
+func (UnimplementedApiServer) GetDownloadProgress(context.Context, *GetDownloadProgressRequest) (*DownloadProgressResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetDownloadProgress not implemented")
 }
 func (UnimplementedApiServer) mustEmbedUnimplementedApiServer() {}
 func (UnimplementedApiServer) testEmbeddedByValue()             {}
@@ -2485,6 +2575,96 @@ func _Api_ReceiveAlarm_Handler(srv interface{}, ctx context.Context, dec func(in
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Api_AddChannelWithProxy_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AddChannelWithProxyRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ApiServer).AddChannelWithProxy(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Api_AddChannelWithProxy_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ApiServer).AddChannelWithProxy(ctx, req.(*AddChannelWithProxyRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Api_UpdateChannelWithProxy_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateChannelWithProxyRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ApiServer).UpdateChannelWithProxy(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Api_UpdateChannelWithProxy_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ApiServer).UpdateChannelWithProxy(ctx, req.(*UpdateChannelWithProxyRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Api_DeleteChannelWithProxy_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteChannelWithProxyRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ApiServer).DeleteChannelWithProxy(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Api_DeleteChannelWithProxy_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ApiServer).DeleteChannelWithProxy(ctx, req.(*DeleteChannelWithProxyRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Api_StartDownload_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(StartDownloadRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ApiServer).StartDownload(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Api_StartDownload_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ApiServer).StartDownload(ctx, req.(*StartDownloadRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Api_GetDownloadProgress_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetDownloadProgressRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ApiServer).GetDownloadProgress(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Api_GetDownloadProgress_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ApiServer).GetDownloadProgress(ctx, req.(*GetDownloadProgressRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // Api_ServiceDesc is the grpc.ServiceDesc for Api service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -2759,6 +2939,26 @@ var Api_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ReceiveAlarm",
 			Handler:    _Api_ReceiveAlarm_Handler,
+		},
+		{
+			MethodName: "AddChannelWithProxy",
+			Handler:    _Api_AddChannelWithProxy_Handler,
+		},
+		{
+			MethodName: "UpdateChannelWithProxy",
+			Handler:    _Api_UpdateChannelWithProxy_Handler,
+		},
+		{
+			MethodName: "DeleteChannelWithProxy",
+			Handler:    _Api_DeleteChannelWithProxy_Handler,
+		},
+		{
+			MethodName: "StartDownload",
+			Handler:    _Api_StartDownload_Handler,
+		},
+		{
+			MethodName: "GetDownloadProgress",
+			Handler:    _Api_GetDownloadProgress_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

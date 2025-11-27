@@ -14,9 +14,9 @@ import (
 
 	_ "embed"
 
+	task "github.com/langhuihui/gotask"
 	"m7s.live/v5"
 	"m7s.live/v5/pkg/config"
-	"m7s.live/v5/pkg/task"
 	"m7s.live/v5/pkg/util"
 	hls "m7s.live/v5/plugin/hls/pkg"
 )
@@ -92,7 +92,8 @@ func (config *HLSPlugin) vod(w http.ResponseWriter, r *http.Request) {
 		if !startTime.IsZero() {
 			if config.DB != nil {
 				var records []m7s.RecordStream
-				if recordType == "fmp4" {
+				switch recordType {
+				case "fmp4":
 					query := `stream_path = ? AND type = ? AND start_time IS NOT NULL AND end_time IS NOT NULL AND ? <= end_time AND ? >= start_time`
 					config.DB.Where(query, streamPath, "mp4", startTime, endTime).Find(&records)
 					if len(records) == 0 {
@@ -117,7 +118,7 @@ func (config *HLSPlugin) vod(w http.ResponseWriter, r *http.Request) {
 					plBuffer.WriteString("#EXT-X-ENDLIST\n")
 					w.Write(plBuffer)
 					return
-				} else if recordType == "ts" {
+				case "ts":
 					playlist := hls.Playlist{
 						Version:        3,
 						Sequence:       0,
@@ -206,6 +207,11 @@ func (config *HLSPlugin) vod(w http.ResponseWriter, r *http.Request) {
 }
 
 func (config *HLSPlugin) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	redirectPath := strings.TrimPrefix(r.URL.Path, "/")
+	if config.Server.RedirectIfNeeded(w, r, "hls", redirectPath) {
+		config.Debug("redirect issued", "protocol", "http", "path", redirectPath)
+		return
+	}
 	fileName := strings.TrimPrefix(r.URL.Path, "/")
 	query := r.URL.Query()
 	waitTimeout, err := time.ParseDuration(query.Get("timeout"))

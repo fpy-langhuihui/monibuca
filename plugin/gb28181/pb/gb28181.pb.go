@@ -942,6 +942,8 @@ type Device struct {
 	Ip                    string                 `protobuf:"bytes,22,opt,name=ip,proto3" json:"ip,omitempty"`
 	Port                  int32                  `protobuf:"varint,23,opt,name=port,proto3" json:"port,omitempty"`
 	BroadcastPushAfterAck bool                   `protobuf:"varint,24,opt,name=broadcastPushAfterAck,proto3" json:"broadcastPushAfterAck,omitempty"`
+	Charset               string                 `protobuf:"bytes,25,opt,name=charset,proto3" json:"charset,omitempty"`
+	SsrcCheck             bool                   `protobuf:"varint,26,opt,name=ssrcCheck,proto3" json:"ssrcCheck,omitempty"`
 	unknownFields         protoimpl.UnknownFields
 	sizeCache             protoimpl.SizeCache
 }
@@ -1140,6 +1142,20 @@ func (x *Device) GetPort() int32 {
 func (x *Device) GetBroadcastPushAfterAck() bool {
 	if x != nil {
 		return x.BroadcastPushAfterAck
+	}
+	return false
+}
+
+func (x *Device) GetCharset() string {
+	if x != nil {
+		return x.Charset
+	}
+	return ""
+}
+
+func (x *Device) GetSsrcCheck() bool {
+	if x != nil {
+		return x.SsrcCheck
 	}
 	return false
 }
@@ -2716,44 +2732,43 @@ func (x *SSRCListResponse) GetCount() int32 {
 // Platform消息定义
 type Platform struct {
 	state                   protoimpl.MessageState `protogen:"open.v1"`
-	Id                      uint32                 `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`                                            // id(数据库中)
-	Enable                  bool                   `protobuf:"varint,2,opt,name=enable,proto3" json:"enable,omitempty"`                                    // 是否启用
-	Name                    string                 `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`                                         // 名称
-	ServerGBId              string                 `protobuf:"bytes,4,opt,name=serverGBId,proto3" json:"serverGBId,omitempty"`                             // SIP服务国标编码
-	ServerGBDomain          string                 `protobuf:"bytes,5,opt,name=serverGBDomain,proto3" json:"serverGBDomain,omitempty"`                     // SIP服务国标域
-	ServerIp                string                 `protobuf:"bytes,6,opt,name=serverIp,proto3" json:"serverIp,omitempty"`                                 // SIP服务IP
-	ServerPort              int32                  `protobuf:"varint,7,opt,name=serverPort,proto3" json:"serverPort,omitempty"`                            // SIP服务端口
-	DeviceGBId              string                 `protobuf:"bytes,8,opt,name=deviceGBId,proto3" json:"deviceGBId,omitempty"`                             // 设备国标编号
-	DeviceIp                string                 `protobuf:"bytes,9,opt,name=deviceIp,proto3" json:"deviceIp,omitempty"`                                 // 设备ip
-	DevicePort              int32                  `protobuf:"varint,10,opt,name=devicePort,proto3" json:"devicePort,omitempty"`                           // 设备端口
-	Username                string                 `protobuf:"bytes,11,opt,name=username,proto3" json:"username,omitempty"`                                // SIP认证用户名
-	Password                string                 `protobuf:"bytes,12,opt,name=password,proto3" json:"password,omitempty"`                                // SIP认证密码
-	Expires                 int32                  `protobuf:"varint,13,opt,name=expires,proto3" json:"expires,omitempty"`                                 // 注册周期(秒)
-	KeepTimeout             int32                  `protobuf:"varint,14,opt,name=keepTimeout,proto3" json:"keepTimeout,omitempty"`                         // 心跳周期(秒)
-	Transport               string                 `protobuf:"bytes,15,opt,name=transport,proto3" json:"transport,omitempty"`                              // 传输协议
-	CharacterSet            string                 `protobuf:"bytes,16,opt,name=characterSet,proto3" json:"characterSet,omitempty"`                        // 字符集
-	Ptz                     bool                   `protobuf:"varint,17,opt,name=ptz,proto3" json:"ptz,omitempty"`                                         // 允许云台控制
-	Rtcp                    bool                   `protobuf:"varint,18,opt,name=rtcp,proto3" json:"rtcp,omitempty"`                                       // RTCP流保活
-	Status                  bool                   `protobuf:"varint,19,opt,name=status,proto3" json:"status,omitempty"`                                   // 在线状态
-	ChannelCount            int32                  `protobuf:"varint,20,opt,name=channelCount,proto3" json:"channelCount,omitempty"`                       // 通道数量
-	CatalogSubscribe        bool                   `protobuf:"varint,21,opt,name=catalogSubscribe,proto3" json:"catalogSubscribe,omitempty"`               // 已被订阅目录信息
-	AlarmSubscribe          bool                   `protobuf:"varint,22,opt,name=alarmSubscribe,proto3" json:"alarmSubscribe,omitempty"`                   // 已被订阅报警信息
-	MobilePositionSubscribe bool                   `protobuf:"varint,23,opt,name=mobilePositionSubscribe,proto3" json:"mobilePositionSubscribe,omitempty"` // 已被订阅移动位置信息
-	CatalogGroup            int32                  `protobuf:"varint,24,opt,name=catalogGroup,proto3" json:"catalogGroup,omitempty"`                       // 目录分组大小
-	UpdateTime              string                 `protobuf:"bytes,25,opt,name=updateTime,proto3" json:"updateTime,omitempty"`                            // 最后更新时间
-	CreateTime              string                 `protobuf:"bytes,26,opt,name=createTime,proto3" json:"createTime,omitempty"`                            // 创建时间
-	AsMessageChannel        bool                   `protobuf:"varint,27,opt,name=asMessageChannel,proto3" json:"asMessageChannel,omitempty"`               // 是否作为消息通道
-	SendStreamIp            string                 `protobuf:"bytes,28,opt,name=sendStreamIp,proto3" json:"sendStreamIp,omitempty"`                        // 点播回复200OK使用的IP
-	AutoPushChannel         bool                   `protobuf:"varint,29,opt,name=autoPushChannel,proto3" json:"autoPushChannel,omitempty"`                 // 是否自动推送通道变化
-	CatalogWithPlatform     int32                  `protobuf:"varint,30,opt,name=catalogWithPlatform,proto3" json:"catalogWithPlatform,omitempty"`         // 目录信息包含平台信息
-	CatalogWithGroup        int32                  `protobuf:"varint,31,opt,name=catalogWithGroup,proto3" json:"catalogWithGroup,omitempty"`               // 目录信息包含分组信息
-	CatalogWithRegion       int32                  `protobuf:"varint,32,opt,name=catalogWithRegion,proto3" json:"catalogWithRegion,omitempty"`             // 目录信息包含行政区划
-	CivilCode               string                 `protobuf:"bytes,33,opt,name=civilCode,proto3" json:"civilCode,omitempty"`                              // 行政区划代码
-	Manufacturer            string                 `protobuf:"bytes,34,opt,name=manufacturer,proto3" json:"manufacturer,omitempty"`                        // 平台厂商
-	Model                   string                 `protobuf:"bytes,35,opt,name=model,proto3" json:"model,omitempty"`                                      // 平台型号
-	Address                 string                 `protobuf:"bytes,36,opt,name=address,proto3" json:"address,omitempty"`                                  // 平台安装地址
-	RegisterWay             int32                  `protobuf:"varint,37,opt,name=registerWay,proto3" json:"registerWay,omitempty"`                         // 注册方式
-	Secrecy                 int32                  `protobuf:"varint,38,opt,name=secrecy,proto3" json:"secrecy,omitempty"`                                 // 保密属性
+	Enable                  bool                   `protobuf:"varint,1,opt,name=enable,proto3" json:"enable,omitempty"`                                    // 是否启用
+	Name                    string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`                                         // 名称
+	ServerGBId              string                 `protobuf:"bytes,3,opt,name=serverGBId,proto3" json:"serverGBId,omitempty"`                             // SIP服务国标编码
+	ServerGBDomain          string                 `protobuf:"bytes,4,opt,name=serverGBDomain,proto3" json:"serverGBDomain,omitempty"`                     // SIP服务国标域
+	ServerIp                string                 `protobuf:"bytes,5,opt,name=serverIp,proto3" json:"serverIp,omitempty"`                                 // SIP服务IP
+	ServerPort              int32                  `protobuf:"varint,6,opt,name=serverPort,proto3" json:"serverPort,omitempty"`                            // SIP服务端口
+	DeviceGBId              string                 `protobuf:"bytes,7,opt,name=deviceGBId,proto3" json:"deviceGBId,omitempty"`                             // 设备国标编号
+	DeviceIp                string                 `protobuf:"bytes,8,opt,name=deviceIp,proto3" json:"deviceIp,omitempty"`                                 // 设备ip
+	DevicePort              int32                  `protobuf:"varint,9,opt,name=devicePort,proto3" json:"devicePort,omitempty"`                            // 设备端口
+	Username                string                 `protobuf:"bytes,10,opt,name=username,proto3" json:"username,omitempty"`                                // SIP认证用户名
+	Password                string                 `protobuf:"bytes,11,opt,name=password,proto3" json:"password,omitempty"`                                // SIP认证密码
+	Expires                 int32                  `protobuf:"varint,12,opt,name=expires,proto3" json:"expires,omitempty"`                                 // 注册周期(秒)
+	KeepTimeout             int32                  `protobuf:"varint,13,opt,name=keepTimeout,proto3" json:"keepTimeout,omitempty"`                         // 心跳周期(秒)
+	Transport               string                 `protobuf:"bytes,14,opt,name=transport,proto3" json:"transport,omitempty"`                              // 传输协议
+	CharacterSet            string                 `protobuf:"bytes,15,opt,name=characterSet,proto3" json:"characterSet,omitempty"`                        // 字符集
+	Ptz                     bool                   `protobuf:"varint,16,opt,name=ptz,proto3" json:"ptz,omitempty"`                                         // 允许云台控制
+	Rtcp                    bool                   `protobuf:"varint,17,opt,name=rtcp,proto3" json:"rtcp,omitempty"`                                       // RTCP流保活
+	Status                  bool                   `protobuf:"varint,18,opt,name=status,proto3" json:"status,omitempty"`                                   // 在线状态
+	ChannelCount            int32                  `protobuf:"varint,19,opt,name=channelCount,proto3" json:"channelCount,omitempty"`                       // 通道数量
+	CatalogSubscribe        bool                   `protobuf:"varint,20,opt,name=catalogSubscribe,proto3" json:"catalogSubscribe,omitempty"`               // 已被订阅目录信息
+	AlarmSubscribe          bool                   `protobuf:"varint,21,opt,name=alarmSubscribe,proto3" json:"alarmSubscribe,omitempty"`                   // 已被订阅报警信息
+	MobilePositionSubscribe bool                   `protobuf:"varint,22,opt,name=mobilePositionSubscribe,proto3" json:"mobilePositionSubscribe,omitempty"` // 已被订阅移动位置信息
+	CatalogGroup            int32                  `protobuf:"varint,23,opt,name=catalogGroup,proto3" json:"catalogGroup,omitempty"`                       // 目录分组大小
+	UpdateTime              string                 `protobuf:"bytes,24,opt,name=updateTime,proto3" json:"updateTime,omitempty"`                            // 最后更新时间
+	CreateTime              string                 `protobuf:"bytes,25,opt,name=createTime,proto3" json:"createTime,omitempty"`                            // 创建时间
+	AsMessageChannel        bool                   `protobuf:"varint,26,opt,name=asMessageChannel,proto3" json:"asMessageChannel,omitempty"`               // 是否作为消息通道
+	SendStreamIp            string                 `protobuf:"bytes,27,opt,name=sendStreamIp,proto3" json:"sendStreamIp,omitempty"`                        // 点播回复200OK使用的IP
+	AutoPushChannel         bool                   `protobuf:"varint,28,opt,name=autoPushChannel,proto3" json:"autoPushChannel,omitempty"`                 // 是否自动推送通道变化
+	CatalogWithPlatform     int32                  `protobuf:"varint,29,opt,name=catalogWithPlatform,proto3" json:"catalogWithPlatform,omitempty"`         // 目录信息包含平台信息
+	CatalogWithGroup        int32                  `protobuf:"varint,30,opt,name=catalogWithGroup,proto3" json:"catalogWithGroup,omitempty"`               // 目录信息包含分组信息
+	CatalogWithRegion       int32                  `protobuf:"varint,31,opt,name=catalogWithRegion,proto3" json:"catalogWithRegion,omitempty"`             // 目录信息包含行政区划
+	CivilCode               string                 `protobuf:"bytes,32,opt,name=civilCode,proto3" json:"civilCode,omitempty"`                              // 行政区划代码
+	Manufacturer            string                 `protobuf:"bytes,33,opt,name=manufacturer,proto3" json:"manufacturer,omitempty"`                        // 平台厂商
+	Model                   string                 `protobuf:"bytes,34,opt,name=model,proto3" json:"model,omitempty"`                                      // 平台型号
+	Address                 string                 `protobuf:"bytes,35,opt,name=address,proto3" json:"address,omitempty"`                                  // 平台安装地址
+	RegisterWay             int32                  `protobuf:"varint,36,opt,name=registerWay,proto3" json:"registerWay,omitempty"`                         // 注册方式
+	Secrecy                 int32                  `protobuf:"varint,37,opt,name=secrecy,proto3" json:"secrecy,omitempty"`                                 // 保密属性
 	unknownFields           protoimpl.UnknownFields
 	sizeCache               protoimpl.SizeCache
 }
@@ -2786,13 +2801,6 @@ func (x *Platform) ProtoReflect() protoreflect.Message {
 // Deprecated: Use Platform.ProtoReflect.Descriptor instead.
 func (*Platform) Descriptor() ([]byte, []int) {
 	return file_gb28181_proto_rawDescGZIP(), []int{39}
-}
-
-func (x *Platform) GetId() uint32 {
-	if x != nil {
-		return x.Id
-	}
-	return 0
 }
 
 func (x *Platform) GetEnable() bool {
@@ -3150,7 +3158,7 @@ type ListPlatformsRequest struct {
 	Page          int32                  `protobuf:"varint,1,opt,name=page,proto3" json:"page,omitempty"`
 	Count         int32                  `protobuf:"varint,2,opt,name=count,proto3" json:"count,omitempty"`
 	Query         string                 `protobuf:"bytes,3,opt,name=query,proto3" json:"query,omitempty"`
-	Status        bool                   `protobuf:"varint,4,opt,name=status,proto3" json:"status,omitempty"`
+	Enable        int32                  `protobuf:"varint,4,opt,name=enable,proto3" json:"enable,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3206,11 +3214,11 @@ func (x *ListPlatformsRequest) GetQuery() string {
 	return ""
 }
 
-func (x *ListPlatformsRequest) GetStatus() bool {
+func (x *ListPlatformsRequest) GetEnable() int32 {
 	if x != nil {
-		return x.Status
+		return x.Enable
 	}
-	return false
+	return 0
 }
 
 // 平台响应
@@ -6236,6 +6244,1131 @@ func (x *AlarmInfoRequest) GetCreateAt() *timestamppb.Timestamp {
 	return nil
 }
 
+// AddChannelWithProxyRequest 添加通道并关联拉流代理的请求
+type AddChannelWithProxyRequest struct {
+	state              protoimpl.MessageState `protogen:"open.v1"`
+	StreamPath         string                 `protobuf:"bytes,1,opt,name=streamPath,proto3" json:"streamPath,omitempty"`                   // 拉流代理的流路径（URL路径参数）
+	DeviceId           string                 `protobuf:"bytes,2,opt,name=deviceId,proto3" json:"deviceId,omitempty"`                       // 设备国标编号
+	ChannelId          string                 `protobuf:"bytes,3,opt,name=channelId,proto3" json:"channelId,omitempty"`                     // 通道ID
+	Name               string                 `protobuf:"bytes,4,opt,name=name,proto3" json:"name,omitempty"`                               // 通道名称
+	Manufacturer       string                 `protobuf:"bytes,5,opt,name=manufacturer,proto3" json:"manufacturer,omitempty"`               // 设备厂商
+	Model              string                 `protobuf:"bytes,6,opt,name=model,proto3" json:"model,omitempty"`                             // 设备型号
+	Owner              string                 `protobuf:"bytes,7,opt,name=owner,proto3" json:"owner,omitempty"`                             // 设备归属
+	CivilCode          string                 `protobuf:"bytes,8,opt,name=civilCode,proto3" json:"civilCode,omitempty"`                     // 行政区域
+	Block              string                 `protobuf:"bytes,9,opt,name=block,proto3" json:"block,omitempty"`                             // 警区
+	Address            string                 `protobuf:"bytes,10,opt,name=address,proto3" json:"address,omitempty"`                        // 安装地址
+	Port               int32                  `protobuf:"varint,11,opt,name=port,proto3" json:"port,omitempty"`                             // 端口
+	Parental           int32                  `protobuf:"varint,12,opt,name=parental,proto3" json:"parental,omitempty"`                     // 是否有子设备
+	ParentId           string                 `protobuf:"bytes,13,opt,name=parentId,proto3" json:"parentId,omitempty"`                      // 父节点ID
+	SafetyWay          int32                  `protobuf:"varint,14,opt,name=safetyWay,proto3" json:"safetyWay,omitempty"`                   // 信令安全模式
+	RegisterWay        int32                  `protobuf:"varint,15,opt,name=registerWay,proto3" json:"registerWay,omitempty"`               // 注册方式
+	CertNum            string                 `protobuf:"bytes,16,opt,name=certNum,proto3" json:"certNum,omitempty"`                        // 证书序列号
+	Certifiable        int32                  `protobuf:"varint,17,opt,name=certifiable,proto3" json:"certifiable,omitempty"`               // 证书有效标识
+	ErrCode            int32                  `protobuf:"varint,18,opt,name=errCode,proto3" json:"errCode,omitempty"`                       // 无效原因码
+	EndTime            string                 `protobuf:"bytes,19,opt,name=endTime,proto3" json:"endTime,omitempty"`                        // 证书终止有效期
+	Secrecy            int32                  `protobuf:"varint,20,opt,name=secrecy,proto3" json:"secrecy,omitempty"`                       // 保密属性
+	IpAddress          string                 `protobuf:"bytes,21,opt,name=ipAddress,proto3" json:"ipAddress,omitempty"`                    // 设备/系统IP地址
+	Password           string                 `protobuf:"bytes,22,opt,name=password,proto3" json:"password,omitempty"`                      // 设备口令
+	PtzType            int32                  `protobuf:"varint,23,opt,name=ptzType,proto3" json:"ptzType,omitempty"`                       // 摄像机类型
+	PositionType       int32                  `protobuf:"varint,24,opt,name=positionType,proto3" json:"positionType,omitempty"`             // 摄像机位置类型
+	RoomType           int32                  `protobuf:"varint,25,opt,name=roomType,proto3" json:"roomType,omitempty"`                     // 安装位置室内外属性
+	UseType            int32                  `protobuf:"varint,26,opt,name=useType,proto3" json:"useType,omitempty"`                       // 用途属性
+	SupplyLightType    int32                  `protobuf:"varint,27,opt,name=supplyLightType,proto3" json:"supplyLightType,omitempty"`       // 摄像机补光属性
+	DirectionType      int32                  `protobuf:"varint,28,opt,name=directionType,proto3" json:"directionType,omitempty"`           // 摄像机监视方位属性
+	Resolution         string                 `protobuf:"bytes,29,opt,name=resolution,proto3" json:"resolution,omitempty"`                  // 摄像机支持的分辨率
+	BusinessGroupId    string                 `protobuf:"bytes,30,opt,name=businessGroupId,proto3" json:"businessGroupId,omitempty"`        // 虚拟组织所属的业务分组ID
+	DownloadSpeed      string                 `protobuf:"bytes,31,opt,name=downloadSpeed,proto3" json:"downloadSpeed,omitempty"`            // 下载倍速
+	SvcSpaceSupportMod int32                  `protobuf:"varint,32,opt,name=svcSpaceSupportMod,proto3" json:"svcSpaceSupportMod,omitempty"` // 空域编码能力
+	SvcTimeSupportMode int32                  `protobuf:"varint,33,opt,name=svcTimeSupportMode,proto3" json:"svcTimeSupportMode,omitempty"` // 时域编码能力
+	Status             string                 `protobuf:"bytes,34,opt,name=status,proto3" json:"status,omitempty"`                          // 设备状态
+	Longitude          string                 `protobuf:"bytes,35,opt,name=longitude,proto3" json:"longitude,omitempty"`                    // 经度
+	Latitude           string                 `protobuf:"bytes,36,opt,name=latitude,proto3" json:"latitude,omitempty"`                      // 纬度
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
+}
+
+func (x *AddChannelWithProxyRequest) Reset() {
+	*x = AddChannelWithProxyRequest{}
+	mi := &file_gb28181_proto_msgTypes[88]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AddChannelWithProxyRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AddChannelWithProxyRequest) ProtoMessage() {}
+
+func (x *AddChannelWithProxyRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_gb28181_proto_msgTypes[88]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AddChannelWithProxyRequest.ProtoReflect.Descriptor instead.
+func (*AddChannelWithProxyRequest) Descriptor() ([]byte, []int) {
+	return file_gb28181_proto_rawDescGZIP(), []int{88}
+}
+
+func (x *AddChannelWithProxyRequest) GetStreamPath() string {
+	if x != nil {
+		return x.StreamPath
+	}
+	return ""
+}
+
+func (x *AddChannelWithProxyRequest) GetDeviceId() string {
+	if x != nil {
+		return x.DeviceId
+	}
+	return ""
+}
+
+func (x *AddChannelWithProxyRequest) GetChannelId() string {
+	if x != nil {
+		return x.ChannelId
+	}
+	return ""
+}
+
+func (x *AddChannelWithProxyRequest) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *AddChannelWithProxyRequest) GetManufacturer() string {
+	if x != nil {
+		return x.Manufacturer
+	}
+	return ""
+}
+
+func (x *AddChannelWithProxyRequest) GetModel() string {
+	if x != nil {
+		return x.Model
+	}
+	return ""
+}
+
+func (x *AddChannelWithProxyRequest) GetOwner() string {
+	if x != nil {
+		return x.Owner
+	}
+	return ""
+}
+
+func (x *AddChannelWithProxyRequest) GetCivilCode() string {
+	if x != nil {
+		return x.CivilCode
+	}
+	return ""
+}
+
+func (x *AddChannelWithProxyRequest) GetBlock() string {
+	if x != nil {
+		return x.Block
+	}
+	return ""
+}
+
+func (x *AddChannelWithProxyRequest) GetAddress() string {
+	if x != nil {
+		return x.Address
+	}
+	return ""
+}
+
+func (x *AddChannelWithProxyRequest) GetPort() int32 {
+	if x != nil {
+		return x.Port
+	}
+	return 0
+}
+
+func (x *AddChannelWithProxyRequest) GetParental() int32 {
+	if x != nil {
+		return x.Parental
+	}
+	return 0
+}
+
+func (x *AddChannelWithProxyRequest) GetParentId() string {
+	if x != nil {
+		return x.ParentId
+	}
+	return ""
+}
+
+func (x *AddChannelWithProxyRequest) GetSafetyWay() int32 {
+	if x != nil {
+		return x.SafetyWay
+	}
+	return 0
+}
+
+func (x *AddChannelWithProxyRequest) GetRegisterWay() int32 {
+	if x != nil {
+		return x.RegisterWay
+	}
+	return 0
+}
+
+func (x *AddChannelWithProxyRequest) GetCertNum() string {
+	if x != nil {
+		return x.CertNum
+	}
+	return ""
+}
+
+func (x *AddChannelWithProxyRequest) GetCertifiable() int32 {
+	if x != nil {
+		return x.Certifiable
+	}
+	return 0
+}
+
+func (x *AddChannelWithProxyRequest) GetErrCode() int32 {
+	if x != nil {
+		return x.ErrCode
+	}
+	return 0
+}
+
+func (x *AddChannelWithProxyRequest) GetEndTime() string {
+	if x != nil {
+		return x.EndTime
+	}
+	return ""
+}
+
+func (x *AddChannelWithProxyRequest) GetSecrecy() int32 {
+	if x != nil {
+		return x.Secrecy
+	}
+	return 0
+}
+
+func (x *AddChannelWithProxyRequest) GetIpAddress() string {
+	if x != nil {
+		return x.IpAddress
+	}
+	return ""
+}
+
+func (x *AddChannelWithProxyRequest) GetPassword() string {
+	if x != nil {
+		return x.Password
+	}
+	return ""
+}
+
+func (x *AddChannelWithProxyRequest) GetPtzType() int32 {
+	if x != nil {
+		return x.PtzType
+	}
+	return 0
+}
+
+func (x *AddChannelWithProxyRequest) GetPositionType() int32 {
+	if x != nil {
+		return x.PositionType
+	}
+	return 0
+}
+
+func (x *AddChannelWithProxyRequest) GetRoomType() int32 {
+	if x != nil {
+		return x.RoomType
+	}
+	return 0
+}
+
+func (x *AddChannelWithProxyRequest) GetUseType() int32 {
+	if x != nil {
+		return x.UseType
+	}
+	return 0
+}
+
+func (x *AddChannelWithProxyRequest) GetSupplyLightType() int32 {
+	if x != nil {
+		return x.SupplyLightType
+	}
+	return 0
+}
+
+func (x *AddChannelWithProxyRequest) GetDirectionType() int32 {
+	if x != nil {
+		return x.DirectionType
+	}
+	return 0
+}
+
+func (x *AddChannelWithProxyRequest) GetResolution() string {
+	if x != nil {
+		return x.Resolution
+	}
+	return ""
+}
+
+func (x *AddChannelWithProxyRequest) GetBusinessGroupId() string {
+	if x != nil {
+		return x.BusinessGroupId
+	}
+	return ""
+}
+
+func (x *AddChannelWithProxyRequest) GetDownloadSpeed() string {
+	if x != nil {
+		return x.DownloadSpeed
+	}
+	return ""
+}
+
+func (x *AddChannelWithProxyRequest) GetSvcSpaceSupportMod() int32 {
+	if x != nil {
+		return x.SvcSpaceSupportMod
+	}
+	return 0
+}
+
+func (x *AddChannelWithProxyRequest) GetSvcTimeSupportMode() int32 {
+	if x != nil {
+		return x.SvcTimeSupportMode
+	}
+	return 0
+}
+
+func (x *AddChannelWithProxyRequest) GetStatus() string {
+	if x != nil {
+		return x.Status
+	}
+	return ""
+}
+
+func (x *AddChannelWithProxyRequest) GetLongitude() string {
+	if x != nil {
+		return x.Longitude
+	}
+	return ""
+}
+
+func (x *AddChannelWithProxyRequest) GetLatitude() string {
+	if x != nil {
+		return x.Latitude
+	}
+	return ""
+}
+
+// UpdateChannelWithProxyRequest 更新通道信息的请求
+type UpdateChannelWithProxyRequest struct {
+	state              protoimpl.MessageState `protogen:"open.v1"`
+	ChannelId          string                 `protobuf:"bytes,1,opt,name=channelId,proto3" json:"channelId,omitempty"`                     // 通道ID（URL路径参数，必填）
+	StreamPath         string                 `protobuf:"bytes,2,opt,name=streamPath,proto3" json:"streamPath,omitempty"`                   // 拉流代理的流路径（可选）
+	Name               string                 `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`                               // 通道名称（可选）
+	Manufacturer       string                 `protobuf:"bytes,4,opt,name=manufacturer,proto3" json:"manufacturer,omitempty"`               // 设备厂商（可选）
+	Model              string                 `protobuf:"bytes,5,opt,name=model,proto3" json:"model,omitempty"`                             // 设备型号（可选）
+	Owner              string                 `protobuf:"bytes,6,opt,name=owner,proto3" json:"owner,omitempty"`                             // 设备归属（可选）
+	CivilCode          string                 `protobuf:"bytes,7,opt,name=civilCode,proto3" json:"civilCode,omitempty"`                     // 行政区域（可选）
+	Block              string                 `protobuf:"bytes,8,opt,name=block,proto3" json:"block,omitempty"`                             // 警区（可选）
+	Address            string                 `protobuf:"bytes,9,opt,name=address,proto3" json:"address,omitempty"`                         // 安装地址（可选）
+	Port               int32                  `protobuf:"varint,10,opt,name=port,proto3" json:"port,omitempty"`                             // 端口（可选）
+	Parental           int32                  `protobuf:"varint,11,opt,name=parental,proto3" json:"parental,omitempty"`                     // 是否有子设备（可选）
+	ParentId           string                 `protobuf:"bytes,12,opt,name=parentId,proto3" json:"parentId,omitempty"`                      // 父节点ID（可选）
+	SafetyWay          int32                  `protobuf:"varint,13,opt,name=safetyWay,proto3" json:"safetyWay,omitempty"`                   // 信令安全模式（可选）
+	RegisterWay        int32                  `protobuf:"varint,14,opt,name=registerWay,proto3" json:"registerWay,omitempty"`               // 注册方式（可选）
+	CertNum            string                 `protobuf:"bytes,15,opt,name=certNum,proto3" json:"certNum,omitempty"`                        // 证书序列号（可选）
+	Certifiable        int32                  `protobuf:"varint,16,opt,name=certifiable,proto3" json:"certifiable,omitempty"`               // 证书有效标识（可选）
+	ErrCode            int32                  `protobuf:"varint,17,opt,name=errCode,proto3" json:"errCode,omitempty"`                       // 无效原因码（可选）
+	EndTime            string                 `protobuf:"bytes,18,opt,name=endTime,proto3" json:"endTime,omitempty"`                        // 证书终止有效期（可选）
+	Secrecy            int32                  `protobuf:"varint,19,opt,name=secrecy,proto3" json:"secrecy,omitempty"`                       // 保密属性（可选）
+	IpAddress          string                 `protobuf:"bytes,20,opt,name=ipAddress,proto3" json:"ipAddress,omitempty"`                    // 设备/系统IP地址（可选）
+	Password           string                 `protobuf:"bytes,21,opt,name=password,proto3" json:"password,omitempty"`                      // 设备口令（可选）
+	PtzType            int32                  `protobuf:"varint,22,opt,name=ptzType,proto3" json:"ptzType,omitempty"`                       // 摄像机类型（可选）
+	PositionType       int32                  `protobuf:"varint,23,opt,name=positionType,proto3" json:"positionType,omitempty"`             // 摄像机位置类型（可选）
+	RoomType           int32                  `protobuf:"varint,24,opt,name=roomType,proto3" json:"roomType,omitempty"`                     // 安装位置室内外属性（可选）
+	UseType            int32                  `protobuf:"varint,25,opt,name=useType,proto3" json:"useType,omitempty"`                       // 用途属性（可选）
+	SupplyLightType    int32                  `protobuf:"varint,26,opt,name=supplyLightType,proto3" json:"supplyLightType,omitempty"`       // 摄像机补光属性（可选）
+	DirectionType      int32                  `protobuf:"varint,27,opt,name=directionType,proto3" json:"directionType,omitempty"`           // 摄像机监视方位属性（可选）
+	Resolution         string                 `protobuf:"bytes,28,opt,name=resolution,proto3" json:"resolution,omitempty"`                  // 摄像机支持的分辨率（可选）
+	BusinessGroupId    string                 `protobuf:"bytes,29,opt,name=businessGroupId,proto3" json:"businessGroupId,omitempty"`        // 虚拟组织所属的业务分组ID（可选）
+	DownloadSpeed      string                 `protobuf:"bytes,30,opt,name=downloadSpeed,proto3" json:"downloadSpeed,omitempty"`            // 下载倍速（可选）
+	SvcSpaceSupportMod int32                  `protobuf:"varint,31,opt,name=svcSpaceSupportMod,proto3" json:"svcSpaceSupportMod,omitempty"` // 空域编码能力（可选）
+	SvcTimeSupportMode int32                  `protobuf:"varint,32,opt,name=svcTimeSupportMode,proto3" json:"svcTimeSupportMode,omitempty"` // 时域编码能力（可选）
+	Status             string                 `protobuf:"bytes,33,opt,name=status,proto3" json:"status,omitempty"`                          // 设备状态（可选）
+	Longitude          string                 `protobuf:"bytes,34,opt,name=longitude,proto3" json:"longitude,omitempty"`                    // 经度（可选）
+	Latitude           string                 `protobuf:"bytes,35,opt,name=latitude,proto3" json:"latitude,omitempty"`                      // 纬度（可选）
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
+}
+
+func (x *UpdateChannelWithProxyRequest) Reset() {
+	*x = UpdateChannelWithProxyRequest{}
+	mi := &file_gb28181_proto_msgTypes[89]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpdateChannelWithProxyRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpdateChannelWithProxyRequest) ProtoMessage() {}
+
+func (x *UpdateChannelWithProxyRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_gb28181_proto_msgTypes[89]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpdateChannelWithProxyRequest.ProtoReflect.Descriptor instead.
+func (*UpdateChannelWithProxyRequest) Descriptor() ([]byte, []int) {
+	return file_gb28181_proto_rawDescGZIP(), []int{89}
+}
+
+func (x *UpdateChannelWithProxyRequest) GetChannelId() string {
+	if x != nil {
+		return x.ChannelId
+	}
+	return ""
+}
+
+func (x *UpdateChannelWithProxyRequest) GetStreamPath() string {
+	if x != nil {
+		return x.StreamPath
+	}
+	return ""
+}
+
+func (x *UpdateChannelWithProxyRequest) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *UpdateChannelWithProxyRequest) GetManufacturer() string {
+	if x != nil {
+		return x.Manufacturer
+	}
+	return ""
+}
+
+func (x *UpdateChannelWithProxyRequest) GetModel() string {
+	if x != nil {
+		return x.Model
+	}
+	return ""
+}
+
+func (x *UpdateChannelWithProxyRequest) GetOwner() string {
+	if x != nil {
+		return x.Owner
+	}
+	return ""
+}
+
+func (x *UpdateChannelWithProxyRequest) GetCivilCode() string {
+	if x != nil {
+		return x.CivilCode
+	}
+	return ""
+}
+
+func (x *UpdateChannelWithProxyRequest) GetBlock() string {
+	if x != nil {
+		return x.Block
+	}
+	return ""
+}
+
+func (x *UpdateChannelWithProxyRequest) GetAddress() string {
+	if x != nil {
+		return x.Address
+	}
+	return ""
+}
+
+func (x *UpdateChannelWithProxyRequest) GetPort() int32 {
+	if x != nil {
+		return x.Port
+	}
+	return 0
+}
+
+func (x *UpdateChannelWithProxyRequest) GetParental() int32 {
+	if x != nil {
+		return x.Parental
+	}
+	return 0
+}
+
+func (x *UpdateChannelWithProxyRequest) GetParentId() string {
+	if x != nil {
+		return x.ParentId
+	}
+	return ""
+}
+
+func (x *UpdateChannelWithProxyRequest) GetSafetyWay() int32 {
+	if x != nil {
+		return x.SafetyWay
+	}
+	return 0
+}
+
+func (x *UpdateChannelWithProxyRequest) GetRegisterWay() int32 {
+	if x != nil {
+		return x.RegisterWay
+	}
+	return 0
+}
+
+func (x *UpdateChannelWithProxyRequest) GetCertNum() string {
+	if x != nil {
+		return x.CertNum
+	}
+	return ""
+}
+
+func (x *UpdateChannelWithProxyRequest) GetCertifiable() int32 {
+	if x != nil {
+		return x.Certifiable
+	}
+	return 0
+}
+
+func (x *UpdateChannelWithProxyRequest) GetErrCode() int32 {
+	if x != nil {
+		return x.ErrCode
+	}
+	return 0
+}
+
+func (x *UpdateChannelWithProxyRequest) GetEndTime() string {
+	if x != nil {
+		return x.EndTime
+	}
+	return ""
+}
+
+func (x *UpdateChannelWithProxyRequest) GetSecrecy() int32 {
+	if x != nil {
+		return x.Secrecy
+	}
+	return 0
+}
+
+func (x *UpdateChannelWithProxyRequest) GetIpAddress() string {
+	if x != nil {
+		return x.IpAddress
+	}
+	return ""
+}
+
+func (x *UpdateChannelWithProxyRequest) GetPassword() string {
+	if x != nil {
+		return x.Password
+	}
+	return ""
+}
+
+func (x *UpdateChannelWithProxyRequest) GetPtzType() int32 {
+	if x != nil {
+		return x.PtzType
+	}
+	return 0
+}
+
+func (x *UpdateChannelWithProxyRequest) GetPositionType() int32 {
+	if x != nil {
+		return x.PositionType
+	}
+	return 0
+}
+
+func (x *UpdateChannelWithProxyRequest) GetRoomType() int32 {
+	if x != nil {
+		return x.RoomType
+	}
+	return 0
+}
+
+func (x *UpdateChannelWithProxyRequest) GetUseType() int32 {
+	if x != nil {
+		return x.UseType
+	}
+	return 0
+}
+
+func (x *UpdateChannelWithProxyRequest) GetSupplyLightType() int32 {
+	if x != nil {
+		return x.SupplyLightType
+	}
+	return 0
+}
+
+func (x *UpdateChannelWithProxyRequest) GetDirectionType() int32 {
+	if x != nil {
+		return x.DirectionType
+	}
+	return 0
+}
+
+func (x *UpdateChannelWithProxyRequest) GetResolution() string {
+	if x != nil {
+		return x.Resolution
+	}
+	return ""
+}
+
+func (x *UpdateChannelWithProxyRequest) GetBusinessGroupId() string {
+	if x != nil {
+		return x.BusinessGroupId
+	}
+	return ""
+}
+
+func (x *UpdateChannelWithProxyRequest) GetDownloadSpeed() string {
+	if x != nil {
+		return x.DownloadSpeed
+	}
+	return ""
+}
+
+func (x *UpdateChannelWithProxyRequest) GetSvcSpaceSupportMod() int32 {
+	if x != nil {
+		return x.SvcSpaceSupportMod
+	}
+	return 0
+}
+
+func (x *UpdateChannelWithProxyRequest) GetSvcTimeSupportMode() int32 {
+	if x != nil {
+		return x.SvcTimeSupportMode
+	}
+	return 0
+}
+
+func (x *UpdateChannelWithProxyRequest) GetStatus() string {
+	if x != nil {
+		return x.Status
+	}
+	return ""
+}
+
+func (x *UpdateChannelWithProxyRequest) GetLongitude() string {
+	if x != nil {
+		return x.Longitude
+	}
+	return ""
+}
+
+func (x *UpdateChannelWithProxyRequest) GetLatitude() string {
+	if x != nil {
+		return x.Latitude
+	}
+	return ""
+}
+
+// DeleteChannelWithProxyRequest 删除通道的请求
+type DeleteChannelWithProxyRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ChannelId     string                 `protobuf:"bytes,1,opt,name=channelId,proto3" json:"channelId,omitempty"` // 通道ID（URL路径参数）
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteChannelWithProxyRequest) Reset() {
+	*x = DeleteChannelWithProxyRequest{}
+	mi := &file_gb28181_proto_msgTypes[90]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteChannelWithProxyRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteChannelWithProxyRequest) ProtoMessage() {}
+
+func (x *DeleteChannelWithProxyRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_gb28181_proto_msgTypes[90]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteChannelWithProxyRequest.ProtoReflect.Descriptor instead.
+func (*DeleteChannelWithProxyRequest) Descriptor() ([]byte, []int) {
+	return file_gb28181_proto_rawDescGZIP(), []int{90}
+}
+
+func (x *DeleteChannelWithProxyRequest) GetChannelId() string {
+	if x != nil {
+		return x.ChannelId
+	}
+	return ""
+}
+
+// StartDownloadRequest 发起录像下载请求
+type StartDownloadRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	DeviceId      string                 `protobuf:"bytes,1,opt,name=deviceId,proto3" json:"deviceId,omitempty"`            // 设备ID（URL路径参数）
+	ChannelId     string                 `protobuf:"bytes,2,opt,name=channelId,proto3" json:"channelId,omitempty"`          // 通道ID（URL路径参数）
+	Start         string                 `protobuf:"bytes,3,opt,name=start,proto3" json:"start,omitempty"`                  // 开始时间（UTC时间戳，秒级或RFC3339格式）
+	End           string                 `protobuf:"bytes,4,opt,name=end,proto3" json:"end,omitempty"`                      // 结束时间（UTC时间戳，秒级或RFC3339格式）
+	DownloadSpeed int32                  `protobuf:"varint,5,opt,name=downloadSpeed,proto3" json:"downloadSpeed,omitempty"` // 下载速度倍数（1-4倍，默认1倍，避免丢帧）
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *StartDownloadRequest) Reset() {
+	*x = StartDownloadRequest{}
+	mi := &file_gb28181_proto_msgTypes[91]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *StartDownloadRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StartDownloadRequest) ProtoMessage() {}
+
+func (x *StartDownloadRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_gb28181_proto_msgTypes[91]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StartDownloadRequest.ProtoReflect.Descriptor instead.
+func (*StartDownloadRequest) Descriptor() ([]byte, []int) {
+	return file_gb28181_proto_rawDescGZIP(), []int{91}
+}
+
+func (x *StartDownloadRequest) GetDeviceId() string {
+	if x != nil {
+		return x.DeviceId
+	}
+	return ""
+}
+
+func (x *StartDownloadRequest) GetChannelId() string {
+	if x != nil {
+		return x.ChannelId
+	}
+	return ""
+}
+
+func (x *StartDownloadRequest) GetStart() string {
+	if x != nil {
+		return x.Start
+	}
+	return ""
+}
+
+func (x *StartDownloadRequest) GetEnd() string {
+	if x != nil {
+		return x.End
+	}
+	return ""
+}
+
+func (x *StartDownloadRequest) GetDownloadSpeed() int32 {
+	if x != nil {
+		return x.DownloadSpeed
+	}
+	return 0
+}
+
+// StartDownloadData 下载任务数据
+type StartDownloadData struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	DownloadId    string                 `protobuf:"bytes,1,opt,name=downloadId,proto3" json:"downloadId,omitempty"`   // 下载任务ID（格式：deviceId_channelId_startTime_endTime）
+	Status        string                 `protobuf:"bytes,2,opt,name=status,proto3" json:"status,omitempty"`           // 初始状态（pending）
+	DownloadUrl   string                 `protobuf:"bytes,3,opt,name=downloadUrl,proto3" json:"downloadUrl,omitempty"` // 下载链接（完成后可直接访问）
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *StartDownloadData) Reset() {
+	*x = StartDownloadData{}
+	mi := &file_gb28181_proto_msgTypes[92]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *StartDownloadData) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StartDownloadData) ProtoMessage() {}
+
+func (x *StartDownloadData) ProtoReflect() protoreflect.Message {
+	mi := &file_gb28181_proto_msgTypes[92]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StartDownloadData.ProtoReflect.Descriptor instead.
+func (*StartDownloadData) Descriptor() ([]byte, []int) {
+	return file_gb28181_proto_rawDescGZIP(), []int{92}
+}
+
+func (x *StartDownloadData) GetDownloadId() string {
+	if x != nil {
+		return x.DownloadId
+	}
+	return ""
+}
+
+func (x *StartDownloadData) GetStatus() string {
+	if x != nil {
+		return x.Status
+	}
+	return ""
+}
+
+func (x *StartDownloadData) GetDownloadUrl() string {
+	if x != nil {
+		return x.DownloadUrl
+	}
+	return ""
+}
+
+// StartDownloadResponse 发起录像下载响应
+type StartDownloadResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Code          int32                  `protobuf:"varint,1,opt,name=code,proto3" json:"code,omitempty"`      // 响应代码
+	Message       string                 `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"` // 响应消息
+	Total         int32                  `protobuf:"varint,3,opt,name=total,proto3" json:"total,omitempty"`    // 总数（统一格式，这里为0）
+	Data          *StartDownloadData     `protobuf:"bytes,4,opt,name=data,proto3" json:"data,omitempty"`       // 下载任务数据
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *StartDownloadResponse) Reset() {
+	*x = StartDownloadResponse{}
+	mi := &file_gb28181_proto_msgTypes[93]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *StartDownloadResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StartDownloadResponse) ProtoMessage() {}
+
+func (x *StartDownloadResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_gb28181_proto_msgTypes[93]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StartDownloadResponse.ProtoReflect.Descriptor instead.
+func (*StartDownloadResponse) Descriptor() ([]byte, []int) {
+	return file_gb28181_proto_rawDescGZIP(), []int{93}
+}
+
+func (x *StartDownloadResponse) GetCode() int32 {
+	if x != nil {
+		return x.Code
+	}
+	return 0
+}
+
+func (x *StartDownloadResponse) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
+func (x *StartDownloadResponse) GetTotal() int32 {
+	if x != nil {
+		return x.Total
+	}
+	return 0
+}
+
+func (x *StartDownloadResponse) GetData() *StartDownloadData {
+	if x != nil {
+		return x.Data
+	}
+	return nil
+}
+
+// GetDownloadProgressRequest 查询下载进度请求
+type GetDownloadProgressRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	DownloadId    string                 `protobuf:"bytes,1,opt,name=downloadId,proto3" json:"downloadId,omitempty"` // 下载任务ID（URL路径参数）
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetDownloadProgressRequest) Reset() {
+	*x = GetDownloadProgressRequest{}
+	mi := &file_gb28181_proto_msgTypes[94]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetDownloadProgressRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetDownloadProgressRequest) ProtoMessage() {}
+
+func (x *GetDownloadProgressRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_gb28181_proto_msgTypes[94]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetDownloadProgressRequest.ProtoReflect.Descriptor instead.
+func (*GetDownloadProgressRequest) Descriptor() ([]byte, []int) {
+	return file_gb28181_proto_rawDescGZIP(), []int{94}
+}
+
+func (x *GetDownloadProgressRequest) GetDownloadId() string {
+	if x != nil {
+		return x.DownloadId
+	}
+	return ""
+}
+
+// DownloadProgressData 下载进度数据
+type DownloadProgressData struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	DownloadId      string                 `protobuf:"bytes,1,opt,name=downloadId,proto3" json:"downloadId,omitempty"`            // 下载任务ID
+	Status          string                 `protobuf:"bytes,2,opt,name=status,proto3" json:"status,omitempty"`                    // 状态：pending/downloading/completed/failed
+	Progress        int32                  `protobuf:"varint,3,opt,name=progress,proto3" json:"progress,omitempty"`               // 下载进度（0-100）
+	FilePath        string                 `protobuf:"bytes,4,opt,name=filePath,proto3" json:"filePath,omitempty"`                // 完成后的文件路径
+	Error           string                 `protobuf:"bytes,5,opt,name=error,proto3" json:"error,omitempty"`                      // 错误信息（如果失败）
+	DownloadedBytes int64                  `protobuf:"varint,6,opt,name=downloadedBytes,proto3" json:"downloadedBytes,omitempty"` // 已下载字节数
+	TotalBytes      int64                  `protobuf:"varint,7,opt,name=totalBytes,proto3" json:"totalBytes,omitempty"`           // 总字节数（预估）
+	StartedAt       *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=startedAt,proto3" json:"startedAt,omitempty"`              // 开始时间
+	CompletedAt     *timestamppb.Timestamp `protobuf:"bytes,9,opt,name=completedAt,proto3" json:"completedAt,omitempty"`          // 完成时间
+	DownloadUrl     string                 `protobuf:"bytes,10,opt,name=downloadUrl,proto3" json:"downloadUrl,omitempty"`         // 下载链接（完成后可直接访问）
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *DownloadProgressData) Reset() {
+	*x = DownloadProgressData{}
+	mi := &file_gb28181_proto_msgTypes[95]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DownloadProgressData) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DownloadProgressData) ProtoMessage() {}
+
+func (x *DownloadProgressData) ProtoReflect() protoreflect.Message {
+	mi := &file_gb28181_proto_msgTypes[95]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DownloadProgressData.ProtoReflect.Descriptor instead.
+func (*DownloadProgressData) Descriptor() ([]byte, []int) {
+	return file_gb28181_proto_rawDescGZIP(), []int{95}
+}
+
+func (x *DownloadProgressData) GetDownloadId() string {
+	if x != nil {
+		return x.DownloadId
+	}
+	return ""
+}
+
+func (x *DownloadProgressData) GetStatus() string {
+	if x != nil {
+		return x.Status
+	}
+	return ""
+}
+
+func (x *DownloadProgressData) GetProgress() int32 {
+	if x != nil {
+		return x.Progress
+	}
+	return 0
+}
+
+func (x *DownloadProgressData) GetFilePath() string {
+	if x != nil {
+		return x.FilePath
+	}
+	return ""
+}
+
+func (x *DownloadProgressData) GetError() string {
+	if x != nil {
+		return x.Error
+	}
+	return ""
+}
+
+func (x *DownloadProgressData) GetDownloadedBytes() int64 {
+	if x != nil {
+		return x.DownloadedBytes
+	}
+	return 0
+}
+
+func (x *DownloadProgressData) GetTotalBytes() int64 {
+	if x != nil {
+		return x.TotalBytes
+	}
+	return 0
+}
+
+func (x *DownloadProgressData) GetStartedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.StartedAt
+	}
+	return nil
+}
+
+func (x *DownloadProgressData) GetCompletedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.CompletedAt
+	}
+	return nil
+}
+
+func (x *DownloadProgressData) GetDownloadUrl() string {
+	if x != nil {
+		return x.DownloadUrl
+	}
+	return ""
+}
+
+// DownloadProgressResponse 下载进度响应
+type DownloadProgressResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Code          int32                  `protobuf:"varint,1,opt,name=code,proto3" json:"code,omitempty"`      // 响应代码
+	Message       string                 `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"` // 响应消息
+	Total         int32                  `protobuf:"varint,3,opt,name=total,proto3" json:"total,omitempty"`    // 总数（统一格式，这里为0）
+	Data          *DownloadProgressData  `protobuf:"bytes,4,opt,name=data,proto3" json:"data,omitempty"`       // 下载进度数据
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DownloadProgressResponse) Reset() {
+	*x = DownloadProgressResponse{}
+	mi := &file_gb28181_proto_msgTypes[96]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DownloadProgressResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DownloadProgressResponse) ProtoMessage() {}
+
+func (x *DownloadProgressResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_gb28181_proto_msgTypes[96]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DownloadProgressResponse.ProtoReflect.Descriptor instead.
+func (*DownloadProgressResponse) Descriptor() ([]byte, []int) {
+	return file_gb28181_proto_rawDescGZIP(), []int{96}
+}
+
+func (x *DownloadProgressResponse) GetCode() int32 {
+	if x != nil {
+		return x.Code
+	}
+	return 0
+}
+
+func (x *DownloadProgressResponse) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
+func (x *DownloadProgressResponse) GetTotal() int32 {
+	if x != nil {
+		return x.Total
+	}
+	return 0
+}
+
+func (x *DownloadProgressResponse) GetData() *DownloadProgressData {
+	if x != nil {
+		return x.Data
+	}
+	return nil
+}
+
 type AddGroupChannelRequest_Channel struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ChannelId     string                 `protobuf:"bytes,1,opt,name=channelId,proto3" json:"channelId,omitempty"` // 通道ID
@@ -6246,7 +7379,7 @@ type AddGroupChannelRequest_Channel struct {
 
 func (x *AddGroupChannelRequest_Channel) Reset() {
 	*x = AddGroupChannelRequest_Channel{}
-	mi := &file_gb28181_proto_msgTypes[89]
+	mi := &file_gb28181_proto_msgTypes[98]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6258,7 +7391,7 @@ func (x *AddGroupChannelRequest_Channel) String() string {
 func (*AddGroupChannelRequest_Channel) ProtoMessage() {}
 
 func (x *AddGroupChannelRequest_Channel) ProtoReflect() protoreflect.Message {
-	mi := &file_gb28181_proto_msgTypes[89]
+	mi := &file_gb28181_proto_msgTypes[98]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6364,7 +7497,7 @@ const file_gb28181_proto_rawDesc = "" +
 	"\x06status\x18\x10 \x01(\tR\x06status\x124\n" +
 	"\agpsTime\x18\x11 \x01(\v2\x1a.google.protobuf.TimestampR\agpsTime\x12\x1c\n" +
 	"\tlongitude\x18\x12 \x01(\tR\tlongitude\x12\x1a\n" +
-	"\blatitude\x18\x13 \x01(\tR\blatitude\"\xd5\x06\n" +
+	"\blatitude\x18\x13 \x01(\tR\blatitude\"\x8d\a\n" +
 	"\x06Device\x12\x1a\n" +
 	"\bdeviceId\x18\x01 \x01(\tR\bdeviceId\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\"\n" +
@@ -6394,7 +7527,9 @@ const file_gb28181_proto_rawDesc = "" +
 	"\ttransport\x18\x15 \x01(\tR\ttransport\x12\x0e\n" +
 	"\x02ip\x18\x16 \x01(\tR\x02ip\x12\x12\n" +
 	"\x04port\x18\x17 \x01(\x05R\x04port\x124\n" +
-	"\x15broadcastPushAfterAck\x18\x18 \x01(\bR\x15broadcastPushAfterAck\"d\n" +
+	"\x15broadcastPushAfterAck\x18\x18 \x01(\bR\x15broadcastPushAfterAck\x12\x18\n" +
+	"\acharset\x18\x19 \x01(\tR\acharset\x12\x1c\n" +
+	"\tssrcCheck\x18\x1a \x01(\bR\tssrcCheck\"d\n" +
 	"\fResponseList\x12\x12\n" +
 	"\x04code\x18\x01 \x01(\x05R\x04code\x12\x18\n" +
 	"\amessage\x18\x02 \x01(\tR\amessage\x12&\n" +
@@ -6506,59 +7641,58 @@ const file_gb28181_proto_rawDesc = "" +
 	"\x04code\x18\x01 \x01(\x05R\x04code\x12\x18\n" +
 	"\amessage\x18\x02 \x01(\tR\amessage\x12(\n" +
 	"\x04data\x18\x03 \x03(\v2\x14.gb28181pro.SSRCInfoR\x04data\x12\x14\n" +
-	"\x05count\x18\x04 \x01(\x05R\x05count\"\xe4\t\n" +
-	"\bPlatform\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\rR\x02id\x12\x16\n" +
-	"\x06enable\x18\x02 \x01(\bR\x06enable\x12\x12\n" +
-	"\x04name\x18\x03 \x01(\tR\x04name\x12\x1e\n" +
+	"\x05count\x18\x04 \x01(\x05R\x05count\"\xd4\t\n" +
+	"\bPlatform\x12\x16\n" +
+	"\x06enable\x18\x01 \x01(\bR\x06enable\x12\x12\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\x12\x1e\n" +
 	"\n" +
-	"serverGBId\x18\x04 \x01(\tR\n" +
+	"serverGBId\x18\x03 \x01(\tR\n" +
 	"serverGBId\x12&\n" +
-	"\x0eserverGBDomain\x18\x05 \x01(\tR\x0eserverGBDomain\x12\x1a\n" +
-	"\bserverIp\x18\x06 \x01(\tR\bserverIp\x12\x1e\n" +
+	"\x0eserverGBDomain\x18\x04 \x01(\tR\x0eserverGBDomain\x12\x1a\n" +
+	"\bserverIp\x18\x05 \x01(\tR\bserverIp\x12\x1e\n" +
 	"\n" +
-	"serverPort\x18\a \x01(\x05R\n" +
+	"serverPort\x18\x06 \x01(\x05R\n" +
 	"serverPort\x12\x1e\n" +
 	"\n" +
-	"deviceGBId\x18\b \x01(\tR\n" +
+	"deviceGBId\x18\a \x01(\tR\n" +
 	"deviceGBId\x12\x1a\n" +
-	"\bdeviceIp\x18\t \x01(\tR\bdeviceIp\x12\x1e\n" +
+	"\bdeviceIp\x18\b \x01(\tR\bdeviceIp\x12\x1e\n" +
 	"\n" +
-	"devicePort\x18\n" +
-	" \x01(\x05R\n" +
+	"devicePort\x18\t \x01(\x05R\n" +
 	"devicePort\x12\x1a\n" +
-	"\busername\x18\v \x01(\tR\busername\x12\x1a\n" +
-	"\bpassword\x18\f \x01(\tR\bpassword\x12\x18\n" +
-	"\aexpires\x18\r \x01(\x05R\aexpires\x12 \n" +
-	"\vkeepTimeout\x18\x0e \x01(\x05R\vkeepTimeout\x12\x1c\n" +
-	"\ttransport\x18\x0f \x01(\tR\ttransport\x12\"\n" +
-	"\fcharacterSet\x18\x10 \x01(\tR\fcharacterSet\x12\x10\n" +
-	"\x03ptz\x18\x11 \x01(\bR\x03ptz\x12\x12\n" +
-	"\x04rtcp\x18\x12 \x01(\bR\x04rtcp\x12\x16\n" +
-	"\x06status\x18\x13 \x01(\bR\x06status\x12\"\n" +
-	"\fchannelCount\x18\x14 \x01(\x05R\fchannelCount\x12*\n" +
-	"\x10catalogSubscribe\x18\x15 \x01(\bR\x10catalogSubscribe\x12&\n" +
-	"\x0ealarmSubscribe\x18\x16 \x01(\bR\x0ealarmSubscribe\x128\n" +
-	"\x17mobilePositionSubscribe\x18\x17 \x01(\bR\x17mobilePositionSubscribe\x12\"\n" +
-	"\fcatalogGroup\x18\x18 \x01(\x05R\fcatalogGroup\x12\x1e\n" +
+	"\busername\x18\n" +
+	" \x01(\tR\busername\x12\x1a\n" +
+	"\bpassword\x18\v \x01(\tR\bpassword\x12\x18\n" +
+	"\aexpires\x18\f \x01(\x05R\aexpires\x12 \n" +
+	"\vkeepTimeout\x18\r \x01(\x05R\vkeepTimeout\x12\x1c\n" +
+	"\ttransport\x18\x0e \x01(\tR\ttransport\x12\"\n" +
+	"\fcharacterSet\x18\x0f \x01(\tR\fcharacterSet\x12\x10\n" +
+	"\x03ptz\x18\x10 \x01(\bR\x03ptz\x12\x12\n" +
+	"\x04rtcp\x18\x11 \x01(\bR\x04rtcp\x12\x16\n" +
+	"\x06status\x18\x12 \x01(\bR\x06status\x12\"\n" +
+	"\fchannelCount\x18\x13 \x01(\x05R\fchannelCount\x12*\n" +
+	"\x10catalogSubscribe\x18\x14 \x01(\bR\x10catalogSubscribe\x12&\n" +
+	"\x0ealarmSubscribe\x18\x15 \x01(\bR\x0ealarmSubscribe\x128\n" +
+	"\x17mobilePositionSubscribe\x18\x16 \x01(\bR\x17mobilePositionSubscribe\x12\"\n" +
+	"\fcatalogGroup\x18\x17 \x01(\x05R\fcatalogGroup\x12\x1e\n" +
 	"\n" +
-	"updateTime\x18\x19 \x01(\tR\n" +
+	"updateTime\x18\x18 \x01(\tR\n" +
 	"updateTime\x12\x1e\n" +
 	"\n" +
-	"createTime\x18\x1a \x01(\tR\n" +
+	"createTime\x18\x19 \x01(\tR\n" +
 	"createTime\x12*\n" +
-	"\x10asMessageChannel\x18\x1b \x01(\bR\x10asMessageChannel\x12\"\n" +
-	"\fsendStreamIp\x18\x1c \x01(\tR\fsendStreamIp\x12(\n" +
-	"\x0fautoPushChannel\x18\x1d \x01(\bR\x0fautoPushChannel\x120\n" +
-	"\x13catalogWithPlatform\x18\x1e \x01(\x05R\x13catalogWithPlatform\x12*\n" +
-	"\x10catalogWithGroup\x18\x1f \x01(\x05R\x10catalogWithGroup\x12,\n" +
-	"\x11catalogWithRegion\x18  \x01(\x05R\x11catalogWithRegion\x12\x1c\n" +
-	"\tcivilCode\x18! \x01(\tR\tcivilCode\x12\"\n" +
-	"\fmanufacturer\x18\" \x01(\tR\fmanufacturer\x12\x14\n" +
-	"\x05model\x18# \x01(\tR\x05model\x12\x18\n" +
-	"\aaddress\x18$ \x01(\tR\aaddress\x12 \n" +
-	"\vregisterWay\x18% \x01(\x05R\vregisterWay\x12\x18\n" +
-	"\asecrecy\x18& \x01(\x05R\asecrecy\"$\n" +
+	"\x10asMessageChannel\x18\x1a \x01(\bR\x10asMessageChannel\x12\"\n" +
+	"\fsendStreamIp\x18\x1b \x01(\tR\fsendStreamIp\x12(\n" +
+	"\x0fautoPushChannel\x18\x1c \x01(\bR\x0fautoPushChannel\x120\n" +
+	"\x13catalogWithPlatform\x18\x1d \x01(\x05R\x13catalogWithPlatform\x12*\n" +
+	"\x10catalogWithGroup\x18\x1e \x01(\x05R\x10catalogWithGroup\x12,\n" +
+	"\x11catalogWithRegion\x18\x1f \x01(\x05R\x11catalogWithRegion\x12\x1c\n" +
+	"\tcivilCode\x18  \x01(\tR\tcivilCode\x12\"\n" +
+	"\fmanufacturer\x18! \x01(\tR\fmanufacturer\x12\x14\n" +
+	"\x05model\x18\" \x01(\tR\x05model\x12\x18\n" +
+	"\aaddress\x18# \x01(\tR\aaddress\x12 \n" +
+	"\vregisterWay\x18$ \x01(\x05R\vregisterWay\x12\x18\n" +
+	"\asecrecy\x18% \x01(\x05R\asecrecy\"$\n" +
 	"\x12GetPlatformRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x05R\x02id\"'\n" +
 	"\x15DeletePlatformRequest\x12\x0e\n" +
@@ -6567,7 +7701,7 @@ const file_gb28181_proto_rawDesc = "" +
 	"\x04page\x18\x01 \x01(\x05R\x04page\x12\x14\n" +
 	"\x05count\x18\x02 \x01(\x05R\x05count\x12\x14\n" +
 	"\x05query\x18\x03 \x01(\tR\x05query\x12\x16\n" +
-	"\x06status\x18\x04 \x01(\bR\x06status\"j\n" +
+	"\x06enable\x18\x04 \x01(\x05R\x06enable\"j\n" +
 	"\x10PlatformResponse\x12\x12\n" +
 	"\x04code\x18\x01 \x01(\x05R\x04code\x12\x18\n" +
 	"\amessage\x18\x02 \x01(\tR\amessage\x12(\n" +
@@ -6825,7 +7959,134 @@ const file_gb28181_proto_rawDesc = "" +
 	"alarm_desc\x18\x04 \x01(\tR\talarmDesc\x12\x1d\n" +
 	"\n" +
 	"alarm_type\x18\x05 \x01(\x05R\talarmType\x126\n" +
-	"\bcreateAt\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\bcreateAt2\xf4?\n" +
+	"\bcreateAt\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\bcreateAt\"\xde\b\n" +
+	"\x1aAddChannelWithProxyRequest\x12\x1e\n" +
+	"\n" +
+	"streamPath\x18\x01 \x01(\tR\n" +
+	"streamPath\x12\x1a\n" +
+	"\bdeviceId\x18\x02 \x01(\tR\bdeviceId\x12\x1c\n" +
+	"\tchannelId\x18\x03 \x01(\tR\tchannelId\x12\x12\n" +
+	"\x04name\x18\x04 \x01(\tR\x04name\x12\"\n" +
+	"\fmanufacturer\x18\x05 \x01(\tR\fmanufacturer\x12\x14\n" +
+	"\x05model\x18\x06 \x01(\tR\x05model\x12\x14\n" +
+	"\x05owner\x18\a \x01(\tR\x05owner\x12\x1c\n" +
+	"\tcivilCode\x18\b \x01(\tR\tcivilCode\x12\x14\n" +
+	"\x05block\x18\t \x01(\tR\x05block\x12\x18\n" +
+	"\aaddress\x18\n" +
+	" \x01(\tR\aaddress\x12\x12\n" +
+	"\x04port\x18\v \x01(\x05R\x04port\x12\x1a\n" +
+	"\bparental\x18\f \x01(\x05R\bparental\x12\x1a\n" +
+	"\bparentId\x18\r \x01(\tR\bparentId\x12\x1c\n" +
+	"\tsafetyWay\x18\x0e \x01(\x05R\tsafetyWay\x12 \n" +
+	"\vregisterWay\x18\x0f \x01(\x05R\vregisterWay\x12\x18\n" +
+	"\acertNum\x18\x10 \x01(\tR\acertNum\x12 \n" +
+	"\vcertifiable\x18\x11 \x01(\x05R\vcertifiable\x12\x18\n" +
+	"\aerrCode\x18\x12 \x01(\x05R\aerrCode\x12\x18\n" +
+	"\aendTime\x18\x13 \x01(\tR\aendTime\x12\x18\n" +
+	"\asecrecy\x18\x14 \x01(\x05R\asecrecy\x12\x1c\n" +
+	"\tipAddress\x18\x15 \x01(\tR\tipAddress\x12\x1a\n" +
+	"\bpassword\x18\x16 \x01(\tR\bpassword\x12\x18\n" +
+	"\aptzType\x18\x17 \x01(\x05R\aptzType\x12\"\n" +
+	"\fpositionType\x18\x18 \x01(\x05R\fpositionType\x12\x1a\n" +
+	"\broomType\x18\x19 \x01(\x05R\broomType\x12\x18\n" +
+	"\auseType\x18\x1a \x01(\x05R\auseType\x12(\n" +
+	"\x0fsupplyLightType\x18\x1b \x01(\x05R\x0fsupplyLightType\x12$\n" +
+	"\rdirectionType\x18\x1c \x01(\x05R\rdirectionType\x12\x1e\n" +
+	"\n" +
+	"resolution\x18\x1d \x01(\tR\n" +
+	"resolution\x12(\n" +
+	"\x0fbusinessGroupId\x18\x1e \x01(\tR\x0fbusinessGroupId\x12$\n" +
+	"\rdownloadSpeed\x18\x1f \x01(\tR\rdownloadSpeed\x12.\n" +
+	"\x12svcSpaceSupportMod\x18  \x01(\x05R\x12svcSpaceSupportMod\x12.\n" +
+	"\x12svcTimeSupportMode\x18! \x01(\x05R\x12svcTimeSupportMode\x12\x16\n" +
+	"\x06status\x18\" \x01(\tR\x06status\x12\x1c\n" +
+	"\tlongitude\x18# \x01(\tR\tlongitude\x12\x1a\n" +
+	"\blatitude\x18$ \x01(\tR\blatitude\"\xc5\b\n" +
+	"\x1dUpdateChannelWithProxyRequest\x12\x1c\n" +
+	"\tchannelId\x18\x01 \x01(\tR\tchannelId\x12\x1e\n" +
+	"\n" +
+	"streamPath\x18\x02 \x01(\tR\n" +
+	"streamPath\x12\x12\n" +
+	"\x04name\x18\x03 \x01(\tR\x04name\x12\"\n" +
+	"\fmanufacturer\x18\x04 \x01(\tR\fmanufacturer\x12\x14\n" +
+	"\x05model\x18\x05 \x01(\tR\x05model\x12\x14\n" +
+	"\x05owner\x18\x06 \x01(\tR\x05owner\x12\x1c\n" +
+	"\tcivilCode\x18\a \x01(\tR\tcivilCode\x12\x14\n" +
+	"\x05block\x18\b \x01(\tR\x05block\x12\x18\n" +
+	"\aaddress\x18\t \x01(\tR\aaddress\x12\x12\n" +
+	"\x04port\x18\n" +
+	" \x01(\x05R\x04port\x12\x1a\n" +
+	"\bparental\x18\v \x01(\x05R\bparental\x12\x1a\n" +
+	"\bparentId\x18\f \x01(\tR\bparentId\x12\x1c\n" +
+	"\tsafetyWay\x18\r \x01(\x05R\tsafetyWay\x12 \n" +
+	"\vregisterWay\x18\x0e \x01(\x05R\vregisterWay\x12\x18\n" +
+	"\acertNum\x18\x0f \x01(\tR\acertNum\x12 \n" +
+	"\vcertifiable\x18\x10 \x01(\x05R\vcertifiable\x12\x18\n" +
+	"\aerrCode\x18\x11 \x01(\x05R\aerrCode\x12\x18\n" +
+	"\aendTime\x18\x12 \x01(\tR\aendTime\x12\x18\n" +
+	"\asecrecy\x18\x13 \x01(\x05R\asecrecy\x12\x1c\n" +
+	"\tipAddress\x18\x14 \x01(\tR\tipAddress\x12\x1a\n" +
+	"\bpassword\x18\x15 \x01(\tR\bpassword\x12\x18\n" +
+	"\aptzType\x18\x16 \x01(\x05R\aptzType\x12\"\n" +
+	"\fpositionType\x18\x17 \x01(\x05R\fpositionType\x12\x1a\n" +
+	"\broomType\x18\x18 \x01(\x05R\broomType\x12\x18\n" +
+	"\auseType\x18\x19 \x01(\x05R\auseType\x12(\n" +
+	"\x0fsupplyLightType\x18\x1a \x01(\x05R\x0fsupplyLightType\x12$\n" +
+	"\rdirectionType\x18\x1b \x01(\x05R\rdirectionType\x12\x1e\n" +
+	"\n" +
+	"resolution\x18\x1c \x01(\tR\n" +
+	"resolution\x12(\n" +
+	"\x0fbusinessGroupId\x18\x1d \x01(\tR\x0fbusinessGroupId\x12$\n" +
+	"\rdownloadSpeed\x18\x1e \x01(\tR\rdownloadSpeed\x12.\n" +
+	"\x12svcSpaceSupportMod\x18\x1f \x01(\x05R\x12svcSpaceSupportMod\x12.\n" +
+	"\x12svcTimeSupportMode\x18  \x01(\x05R\x12svcTimeSupportMode\x12\x16\n" +
+	"\x06status\x18! \x01(\tR\x06status\x12\x1c\n" +
+	"\tlongitude\x18\" \x01(\tR\tlongitude\x12\x1a\n" +
+	"\blatitude\x18# \x01(\tR\blatitude\"=\n" +
+	"\x1dDeleteChannelWithProxyRequest\x12\x1c\n" +
+	"\tchannelId\x18\x01 \x01(\tR\tchannelId\"\x9e\x01\n" +
+	"\x14StartDownloadRequest\x12\x1a\n" +
+	"\bdeviceId\x18\x01 \x01(\tR\bdeviceId\x12\x1c\n" +
+	"\tchannelId\x18\x02 \x01(\tR\tchannelId\x12\x14\n" +
+	"\x05start\x18\x03 \x01(\tR\x05start\x12\x10\n" +
+	"\x03end\x18\x04 \x01(\tR\x03end\x12$\n" +
+	"\rdownloadSpeed\x18\x05 \x01(\x05R\rdownloadSpeed\"m\n" +
+	"\x11StartDownloadData\x12\x1e\n" +
+	"\n" +
+	"downloadId\x18\x01 \x01(\tR\n" +
+	"downloadId\x12\x16\n" +
+	"\x06status\x18\x02 \x01(\tR\x06status\x12 \n" +
+	"\vdownloadUrl\x18\x03 \x01(\tR\vdownloadUrl\"\x8e\x01\n" +
+	"\x15StartDownloadResponse\x12\x12\n" +
+	"\x04code\x18\x01 \x01(\x05R\x04code\x12\x18\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage\x12\x14\n" +
+	"\x05total\x18\x03 \x01(\x05R\x05total\x121\n" +
+	"\x04data\x18\x04 \x01(\v2\x1d.gb28181pro.StartDownloadDataR\x04data\"<\n" +
+	"\x1aGetDownloadProgressRequest\x12\x1e\n" +
+	"\n" +
+	"downloadId\x18\x01 \x01(\tR\n" +
+	"downloadId\"\x80\x03\n" +
+	"\x14DownloadProgressData\x12\x1e\n" +
+	"\n" +
+	"downloadId\x18\x01 \x01(\tR\n" +
+	"downloadId\x12\x16\n" +
+	"\x06status\x18\x02 \x01(\tR\x06status\x12\x1a\n" +
+	"\bprogress\x18\x03 \x01(\x05R\bprogress\x12\x1a\n" +
+	"\bfilePath\x18\x04 \x01(\tR\bfilePath\x12\x14\n" +
+	"\x05error\x18\x05 \x01(\tR\x05error\x12(\n" +
+	"\x0fdownloadedBytes\x18\x06 \x01(\x03R\x0fdownloadedBytes\x12\x1e\n" +
+	"\n" +
+	"totalBytes\x18\a \x01(\x03R\n" +
+	"totalBytes\x128\n" +
+	"\tstartedAt\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\tstartedAt\x12<\n" +
+	"\vcompletedAt\x18\t \x01(\v2\x1a.google.protobuf.TimestampR\vcompletedAt\x12 \n" +
+	"\vdownloadUrl\x18\n" +
+	" \x01(\tR\vdownloadUrl\"\x94\x01\n" +
+	"\x18DownloadProgressResponse\x12\x12\n" +
+	"\x04code\x18\x01 \x01(\x05R\x04code\x12\x18\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage\x12\x14\n" +
+	"\x05total\x18\x03 \x01(\x05R\x05total\x124\n" +
+	"\x04data\x18\x04 \x01(\v2 .gb28181pro.DownloadProgressDataR\x04data2\xf1E\n" +
 	"\x03api\x12]\n" +
 	"\x04List\x12\x1d.gb28181pro.GetDevicesRequest\x1a\x1b.gb28181pro.DevicesPageInfo\"\x19\x82\xd3\xe4\x93\x02\x13\x12\x11/gb28181/api/list\x12n\n" +
 	"\tGetDevice\x12\x1c.gb28181pro.GetDeviceRequest\x1a\x1a.gb28181pro.DeviceResponse\"'\x82\xd3\xe4\x93\x02!\x12\x1f/gb28181/api/devices/{deviceId}\x12f\n" +
@@ -6900,7 +8161,12 @@ const file_gb28181_proto_rawDesc = "" +
 	"\x12DeleteGroupChannel\x12%.gb28181pro.DeleteGroupChannelRequest\x1a\x18.gb28181pro.BaseResponse\"7\x82\xd3\xe4\x93\x021:\x01*\",/gb28181/api/groups/channel/delete/{groupId}\x12\x8a\x01\n" +
 	"\x10GetGroupChannels\x12#.gb28181pro.GetGroupChannelsRequest\x1a!.gb28181pro.GroupChannelsResponse\".\x82\xd3\xe4\x93\x02(\x12&/gb28181/api/groups/{groupId}/channels\x12r\n" +
 	"\fRemoveDevice\x12\x1f.gb28181pro.RemoveDeviceRequest\x1a\x18.gb28181pro.BaseResponse\"'\x82\xd3\xe4\x93\x02!\"\x1f/gb28181/api/device/remove/{id}\x12m\n" +
-	"\fReceiveAlarm\x12\x1c.gb28181pro.AlarmInfoRequest\x1a\x18.gb28181pro.BaseResponse\"%\x82\xd3\xe4\x93\x02\x1f:\x01*\"\x1a/gb28181/api/alarm/receiveB\x1fZ\x1dm7s.live/v5/plugin/gb28181/pbb\x06proto3"
+	"\fReceiveAlarm\x12\x1c.gb28181pro.AlarmInfoRequest\x1a\x18.gb28181pro.BaseResponse\"%\x82\xd3\xe4\x93\x02\x1f:\x01*\"\x1a/gb28181/api/alarm/receive\x12\x97\x01\n" +
+	"\x13AddChannelWithProxy\x12&.gb28181pro.AddChannelWithProxyRequest\x1a\x18.gb28181pro.BaseResponse\">\x82\xd3\xe4\x93\x028:\x01*\"3/gb28181/api/channel/add_with_proxy/{streamPath=**}\x12\x9c\x01\n" +
+	"\x16UpdateChannelWithProxy\x12).gb28181pro.UpdateChannelWithProxyRequest\x1a\x18.gb28181pro.BaseResponse\"=\x82\xd3\xe4\x93\x027:\x01*\"2/gb28181/api/channel/update_with_proxy/{channelId}\x12\x99\x01\n" +
+	"\x16DeleteChannelWithProxy\x12).gb28181pro.DeleteChannelWithProxyRequest\x1a\x18.gb28181pro.BaseResponse\":\x82\xd3\xe4\x93\x024\"2/gb28181/api/channel/delete_with_proxy/{channelId}\x12\x8a\x01\n" +
+	"\rStartDownload\x12 .gb28181pro.StartDownloadRequest\x1a!.gb28181pro.StartDownloadResponse\"4\x82\xd3\xe4\x93\x02.\x12,/gb28181/api/download/{deviceId}/{channelId}\x12\x98\x01\n" +
+	"\x13GetDownloadProgress\x12&.gb28181pro.GetDownloadProgressRequest\x1a$.gb28181pro.DownloadProgressResponse\"3\x82\xd3\xe4\x93\x02-\x12+/gb28181/api/download/progress/{downloadId}B\x1fZ\x1dm7s.live/v5/plugin/gb28181/pbb\x06proto3"
 
 var (
 	file_gb28181_proto_rawDescOnce sync.Once
@@ -6914,7 +8180,7 @@ func file_gb28181_proto_rawDescGZIP() []byte {
 	return file_gb28181_proto_rawDescData
 }
 
-var file_gb28181_proto_msgTypes = make([]protoimpl.MessageInfo, 90)
+var file_gb28181_proto_msgTypes = make([]protoimpl.MessageInfo, 99)
 var file_gb28181_proto_goTypes = []any{
 	(*BaseResponse)(nil),                   // 0: gb28181pro.BaseResponse
 	(*GetDeviceRequest)(nil),               // 1: gb28181pro.GetDeviceRequest
@@ -7004,23 +8270,32 @@ var file_gb28181_proto_goTypes = []any{
 	(*PlaybackSpeedRequest)(nil),           // 85: gb28181pro.PlaybackSpeedRequest
 	(*RemoveDeviceRequest)(nil),            // 86: gb28181pro.RemoveDeviceRequest
 	(*AlarmInfoRequest)(nil),               // 87: gb28181pro.AlarmInfoRequest
-	nil,                                    // 88: gb28181pro.SubscribeInfoResponse.DialogStateEntry
-	(*AddGroupChannelRequest_Channel)(nil), // 89: gb28181pro.AddGroupChannelRequest.Channel
-	(*timestamppb.Timestamp)(nil),          // 90: google.protobuf.Timestamp
-	(*emptypb.Empty)(nil),                  // 91: google.protobuf.Empty
+	(*AddChannelWithProxyRequest)(nil),     // 88: gb28181pro.AddChannelWithProxyRequest
+	(*UpdateChannelWithProxyRequest)(nil),  // 89: gb28181pro.UpdateChannelWithProxyRequest
+	(*DeleteChannelWithProxyRequest)(nil),  // 90: gb28181pro.DeleteChannelWithProxyRequest
+	(*StartDownloadRequest)(nil),           // 91: gb28181pro.StartDownloadRequest
+	(*StartDownloadData)(nil),              // 92: gb28181pro.StartDownloadData
+	(*StartDownloadResponse)(nil),          // 93: gb28181pro.StartDownloadResponse
+	(*GetDownloadProgressRequest)(nil),     // 94: gb28181pro.GetDownloadProgressRequest
+	(*DownloadProgressData)(nil),           // 95: gb28181pro.DownloadProgressData
+	(*DownloadProgressResponse)(nil),       // 96: gb28181pro.DownloadProgressResponse
+	nil,                                    // 97: gb28181pro.SubscribeInfoResponse.DialogStateEntry
+	(*AddGroupChannelRequest_Channel)(nil), // 98: gb28181pro.AddGroupChannelRequest.Channel
+	(*timestamppb.Timestamp)(nil),          // 99: google.protobuf.Timestamp
+	(*emptypb.Empty)(nil),                  // 100: google.protobuf.Empty
 }
 var file_gb28181_proto_depIdxs = []int32{
 	12,  // 0: gb28181pro.DevicesPageInfo.data:type_name -> gb28181pro.Device
 	11,  // 1: gb28181pro.ChannelsPageInfo.list:type_name -> gb28181pro.Channel
-	90,  // 2: gb28181pro.Channel.gpsTime:type_name -> google.protobuf.Timestamp
-	90,  // 3: gb28181pro.Device.registerTime:type_name -> google.protobuf.Timestamp
-	90,  // 4: gb28181pro.Device.updateTime:type_name -> google.protobuf.Timestamp
-	90,  // 5: gb28181pro.Device.keepAliveTime:type_name -> google.protobuf.Timestamp
+	99,  // 2: gb28181pro.Channel.gpsTime:type_name -> google.protobuf.Timestamp
+	99,  // 3: gb28181pro.Device.registerTime:type_name -> google.protobuf.Timestamp
+	99,  // 4: gb28181pro.Device.updateTime:type_name -> google.protobuf.Timestamp
+	99,  // 5: gb28181pro.Device.keepAliveTime:type_name -> google.protobuf.Timestamp
 	11,  // 6: gb28181pro.Device.channels:type_name -> gb28181pro.Channel
 	12,  // 7: gb28181pro.ResponseList.data:type_name -> gb28181pro.Device
 	20,  // 8: gb28181pro.DeviceAlarmResponse.data:type_name -> gb28181pro.AlarmInfo
 	11,  // 9: gb28181pro.UpdateChannelRequest.channel:type_name -> gb28181pro.Channel
-	88,  // 10: gb28181pro.SubscribeInfoResponse.dialogState:type_name -> gb28181pro.SubscribeInfoResponse.DialogStateEntry
+	97,  // 10: gb28181pro.SubscribeInfoResponse.dialogState:type_name -> gb28181pro.SubscribeInfoResponse.DialogStateEntry
 	12,  // 11: gb28181pro.DeviceResponse.data:type_name -> gb28181pro.Device
 	11,  // 12: gb28181pro.ChannelResponse.data:type_name -> gb28181pro.Channel
 	33,  // 13: gb28181pro.PlayResponse.stream_info:type_name -> gb28181pro.StreamInfo
@@ -7028,161 +8303,175 @@ var file_gb28181_proto_depIdxs = []int32{
 	39,  // 15: gb28181pro.PlatformResponse.data:type_name -> gb28181pro.Platform
 	39,  // 16: gb28181pro.PlatformsPageInfo.list:type_name -> gb28181pro.Platform
 	47,  // 17: gb28181pro.QueryRecordResponse.data:type_name -> gb28181pro.RecordItem
-	90,  // 18: gb28181pro.QueryRecordResponse.last_time:type_name -> google.protobuf.Timestamp
+	99,  // 18: gb28181pro.QueryRecordResponse.last_time:type_name -> google.protobuf.Timestamp
 	65,  // 19: gb28181pro.SearchAlarmsResponse.data:type_name -> gb28181pro.AlarmRecord
-	90,  // 20: gb28181pro.AlarmRecord.alarmTime:type_name -> google.protobuf.Timestamp
-	90,  // 21: gb28181pro.AlarmRecord.createTime:type_name -> google.protobuf.Timestamp
-	90,  // 22: gb28181pro.Group.createTime:type_name -> google.protobuf.Timestamp
-	90,  // 23: gb28181pro.Group.updateTime:type_name -> google.protobuf.Timestamp
+	99,  // 20: gb28181pro.AlarmRecord.alarmTime:type_name -> google.protobuf.Timestamp
+	99,  // 21: gb28181pro.AlarmRecord.createTime:type_name -> google.protobuf.Timestamp
+	99,  // 22: gb28181pro.Group.createTime:type_name -> google.protobuf.Timestamp
+	99,  // 23: gb28181pro.Group.updateTime:type_name -> google.protobuf.Timestamp
 	69,  // 24: gb28181pro.Group.children:type_name -> gb28181pro.Group
 	79,  // 25: gb28181pro.Group.channels:type_name -> gb28181pro.GroupChannel
 	69,  // 26: gb28181pro.GroupResponse.data:type_name -> gb28181pro.Group
 	69,  // 27: gb28181pro.GroupsListResponse.data:type_name -> gb28181pro.Group
 	69,  // 28: gb28181pro.GroupsPageInfo.data:type_name -> gb28181pro.Group
-	89,  // 29: gb28181pro.AddGroupChannelRequest.channels:type_name -> gb28181pro.AddGroupChannelRequest.Channel
+	98,  // 29: gb28181pro.AddGroupChannelRequest.channels:type_name -> gb28181pro.AddGroupChannelRequest.Channel
 	81,  // 30: gb28181pro.GroupChannelsResponse.data:type_name -> gb28181pro.GroupChannelsData
 	79,  // 31: gb28181pro.GroupChannelsData.list:type_name -> gb28181pro.GroupChannel
 	79,  // 32: gb28181pro.GroupChannelsData.channels:type_name -> gb28181pro.GroupChannel
-	90,  // 33: gb28181pro.AlarmInfoRequest.createAt:type_name -> google.protobuf.Timestamp
-	2,   // 34: gb28181pro.api.List:input_type -> gb28181pro.GetDevicesRequest
-	1,   // 35: gb28181pro.api.GetDevice:input_type -> gb28181pro.GetDeviceRequest
-	2,   // 36: gb28181pro.api.GetDevices:input_type -> gb28181pro.GetDevicesRequest
-	4,   // 37: gb28181pro.api.GetChannels:input_type -> gb28181pro.GetChannelsRequest
-	6,   // 38: gb28181pro.api.SyncDevice:input_type -> gb28181pro.SyncDeviceRequest
-	8,   // 39: gb28181pro.api.DeleteDevice:input_type -> gb28181pro.DeleteDeviceRequest
-	10,  // 40: gb28181pro.api.GetSubChannels:input_type -> gb28181pro.GetSubChannelsRequest
-	14,  // 41: gb28181pro.api.ChangeAudio:input_type -> gb28181pro.ChangeAudioRequest
-	11,  // 42: gb28181pro.api.UpdateChannelStreamIdentification:input_type -> gb28181pro.Channel
-	15,  // 43: gb28181pro.api.UpdateTransport:input_type -> gb28181pro.UpdateTransportRequest
-	12,  // 44: gb28181pro.api.AddDevice:input_type -> gb28181pro.Device
-	12,  // 45: gb28181pro.api.UpdateDevice:input_type -> gb28181pro.Device
-	16,  // 46: gb28181pro.api.GetDeviceStatus:input_type -> gb28181pro.GetDeviceStatusRequest
-	18,  // 47: gb28181pro.api.GetDeviceAlarm:input_type -> gb28181pro.GetDeviceAlarmRequest
-	22,  // 48: gb28181pro.api.GetSyncStatus:input_type -> gb28181pro.GetSyncStatusRequest
-	23,  // 49: gb28181pro.api.GetSubscribeInfo:input_type -> gb28181pro.GetSubscribeInfoRequest
-	25,  // 50: gb28181pro.api.GetSnap:input_type -> gb28181pro.GetSnapRequest
-	34,  // 51: gb28181pro.api.StopConvert:input_type -> gb28181pro.ConvertStopRequest
-	35,  // 52: gb28181pro.api.StartBroadcast:input_type -> gb28181pro.BroadcastRequest
-	35,  // 53: gb28181pro.api.StopBroadcast:input_type -> gb28181pro.BroadcastRequest
-	91,  // 54: gb28181pro.api.GetAllSSRC:input_type -> google.protobuf.Empty
-	27,  // 55: gb28181pro.api.GetRawChannel:input_type -> gb28181pro.GetRawChannelRequest
-	39,  // 56: gb28181pro.api.AddPlatform:input_type -> gb28181pro.Platform
-	40,  // 57: gb28181pro.api.GetPlatform:input_type -> gb28181pro.GetPlatformRequest
-	39,  // 58: gb28181pro.api.UpdatePlatform:input_type -> gb28181pro.Platform
-	41,  // 59: gb28181pro.api.DeletePlatform:input_type -> gb28181pro.DeletePlatformRequest
-	42,  // 60: gb28181pro.api.ListPlatforms:input_type -> gb28181pro.ListPlatformsRequest
-	45,  // 61: gb28181pro.api.QueryRecord:input_type -> gb28181pro.QueryRecordRequest
-	48,  // 62: gb28181pro.api.PtzControl:input_type -> gb28181pro.PtzControlRequest
-	49,  // 63: gb28181pro.api.IrisControl:input_type -> gb28181pro.IrisControlRequest
-	50,  // 64: gb28181pro.api.FocusControl:input_type -> gb28181pro.FocusControlRequest
-	51,  // 65: gb28181pro.api.QueryPreset:input_type -> gb28181pro.PresetRequest
-	51,  // 66: gb28181pro.api.AddPreset:input_type -> gb28181pro.PresetRequest
-	51,  // 67: gb28181pro.api.CallPreset:input_type -> gb28181pro.PresetRequest
-	51,  // 68: gb28181pro.api.DeletePreset:input_type -> gb28181pro.PresetRequest
-	53,  // 69: gb28181pro.api.AddCruisePoint:input_type -> gb28181pro.CruisePointRequest
-	53,  // 70: gb28181pro.api.DeleteCruisePoint:input_type -> gb28181pro.CruisePointRequest
-	54,  // 71: gb28181pro.api.SetCruiseSpeed:input_type -> gb28181pro.CruiseSpeedRequest
-	55,  // 72: gb28181pro.api.SetCruiseTime:input_type -> gb28181pro.CruiseTimeRequest
-	56,  // 73: gb28181pro.api.StartCruise:input_type -> gb28181pro.CruiseRequest
-	56,  // 74: gb28181pro.api.StopCruise:input_type -> gb28181pro.CruiseRequest
-	57,  // 75: gb28181pro.api.StartScan:input_type -> gb28181pro.ScanRequest
-	57,  // 76: gb28181pro.api.StopScan:input_type -> gb28181pro.ScanRequest
-	57,  // 77: gb28181pro.api.SetScanLeft:input_type -> gb28181pro.ScanRequest
-	57,  // 78: gb28181pro.api.SetScanRight:input_type -> gb28181pro.ScanRequest
-	58,  // 79: gb28181pro.api.SetScanSpeed:input_type -> gb28181pro.ScanSpeedRequest
-	59,  // 80: gb28181pro.api.WiperControl:input_type -> gb28181pro.WiperControlRequest
-	60,  // 81: gb28181pro.api.AuxiliaryControl:input_type -> gb28181pro.AuxiliaryControlRequest
-	61,  // 82: gb28181pro.api.TestSip:input_type -> gb28181pro.TestSipRequest
-	63,  // 83: gb28181pro.api.SearchAlarms:input_type -> gb28181pro.SearchAlarmsRequest
-	66,  // 84: gb28181pro.api.AddPlatformChannel:input_type -> gb28181pro.AddPlatformChannelRequest
-	67,  // 85: gb28181pro.api.Recording:input_type -> gb28181pro.RecordingRequest
-	68,  // 86: gb28181pro.api.UploadJpeg:input_type -> gb28181pro.UploadJpegRequest
-	21,  // 87: gb28181pro.api.UpdateChannel:input_type -> gb28181pro.UpdateChannelRequest
-	82,  // 88: gb28181pro.api.PlaybackPause:input_type -> gb28181pro.PlaybackPauseRequest
-	83,  // 89: gb28181pro.api.PlaybackResume:input_type -> gb28181pro.PlaybackResumeRequest
-	84,  // 90: gb28181pro.api.PlaybackSeek:input_type -> gb28181pro.PlaybackSeekRequest
-	85,  // 91: gb28181pro.api.PlaybackSpeed:input_type -> gb28181pro.PlaybackSpeedRequest
-	70,  // 92: gb28181pro.api.GetGroups:input_type -> gb28181pro.GetGroupsRequest
-	69,  // 93: gb28181pro.api.AddGroup:input_type -> gb28181pro.Group
-	69,  // 94: gb28181pro.api.UpdateGroup:input_type -> gb28181pro.Group
-	71,  // 95: gb28181pro.api.DeleteGroup:input_type -> gb28181pro.DeleteGroupRequest
-	76,  // 96: gb28181pro.api.AddGroupChannel:input_type -> gb28181pro.AddGroupChannelRequest
-	77,  // 97: gb28181pro.api.DeleteGroupChannel:input_type -> gb28181pro.DeleteGroupChannelRequest
-	78,  // 98: gb28181pro.api.GetGroupChannels:input_type -> gb28181pro.GetGroupChannelsRequest
-	86,  // 99: gb28181pro.api.RemoveDevice:input_type -> gb28181pro.RemoveDeviceRequest
-	87,  // 100: gb28181pro.api.ReceiveAlarm:input_type -> gb28181pro.AlarmInfoRequest
-	3,   // 101: gb28181pro.api.List:output_type -> gb28181pro.DevicesPageInfo
-	28,  // 102: gb28181pro.api.GetDevice:output_type -> gb28181pro.DeviceResponse
-	3,   // 103: gb28181pro.api.GetDevices:output_type -> gb28181pro.DevicesPageInfo
-	5,   // 104: gb28181pro.api.GetChannels:output_type -> gb28181pro.ChannelsPageInfo
-	7,   // 105: gb28181pro.api.SyncDevice:output_type -> gb28181pro.SyncStatus
-	9,   // 106: gb28181pro.api.DeleteDevice:output_type -> gb28181pro.DeleteDeviceResponse
-	5,   // 107: gb28181pro.api.GetSubChannels:output_type -> gb28181pro.ChannelsPageInfo
-	0,   // 108: gb28181pro.api.ChangeAudio:output_type -> gb28181pro.BaseResponse
-	0,   // 109: gb28181pro.api.UpdateChannelStreamIdentification:output_type -> gb28181pro.BaseResponse
-	0,   // 110: gb28181pro.api.UpdateTransport:output_type -> gb28181pro.BaseResponse
-	0,   // 111: gb28181pro.api.AddDevice:output_type -> gb28181pro.BaseResponse
-	0,   // 112: gb28181pro.api.UpdateDevice:output_type -> gb28181pro.BaseResponse
-	17,  // 113: gb28181pro.api.GetDeviceStatus:output_type -> gb28181pro.DeviceStatusResponse
-	19,  // 114: gb28181pro.api.GetDeviceAlarm:output_type -> gb28181pro.DeviceAlarmResponse
-	7,   // 115: gb28181pro.api.GetSyncStatus:output_type -> gb28181pro.SyncStatus
-	24,  // 116: gb28181pro.api.GetSubscribeInfo:output_type -> gb28181pro.SubscribeInfoResponse
-	26,  // 117: gb28181pro.api.GetSnap:output_type -> gb28181pro.SnapResponse
-	0,   // 118: gb28181pro.api.StopConvert:output_type -> gb28181pro.BaseResponse
-	36,  // 119: gb28181pro.api.StartBroadcast:output_type -> gb28181pro.BroadcastResponse
-	0,   // 120: gb28181pro.api.StopBroadcast:output_type -> gb28181pro.BaseResponse
-	38,  // 121: gb28181pro.api.GetAllSSRC:output_type -> gb28181pro.SSRCListResponse
-	11,  // 122: gb28181pro.api.GetRawChannel:output_type -> gb28181pro.Channel
-	0,   // 123: gb28181pro.api.AddPlatform:output_type -> gb28181pro.BaseResponse
-	43,  // 124: gb28181pro.api.GetPlatform:output_type -> gb28181pro.PlatformResponse
-	0,   // 125: gb28181pro.api.UpdatePlatform:output_type -> gb28181pro.BaseResponse
-	0,   // 126: gb28181pro.api.DeletePlatform:output_type -> gb28181pro.BaseResponse
-	44,  // 127: gb28181pro.api.ListPlatforms:output_type -> gb28181pro.PlatformsPageInfo
-	46,  // 128: gb28181pro.api.QueryRecord:output_type -> gb28181pro.QueryRecordResponse
-	0,   // 129: gb28181pro.api.PtzControl:output_type -> gb28181pro.BaseResponse
-	0,   // 130: gb28181pro.api.IrisControl:output_type -> gb28181pro.BaseResponse
-	0,   // 131: gb28181pro.api.FocusControl:output_type -> gb28181pro.BaseResponse
-	52,  // 132: gb28181pro.api.QueryPreset:output_type -> gb28181pro.PresetResponse
-	0,   // 133: gb28181pro.api.AddPreset:output_type -> gb28181pro.BaseResponse
-	0,   // 134: gb28181pro.api.CallPreset:output_type -> gb28181pro.BaseResponse
-	0,   // 135: gb28181pro.api.DeletePreset:output_type -> gb28181pro.BaseResponse
-	0,   // 136: gb28181pro.api.AddCruisePoint:output_type -> gb28181pro.BaseResponse
-	0,   // 137: gb28181pro.api.DeleteCruisePoint:output_type -> gb28181pro.BaseResponse
-	0,   // 138: gb28181pro.api.SetCruiseSpeed:output_type -> gb28181pro.BaseResponse
-	0,   // 139: gb28181pro.api.SetCruiseTime:output_type -> gb28181pro.BaseResponse
-	0,   // 140: gb28181pro.api.StartCruise:output_type -> gb28181pro.BaseResponse
-	0,   // 141: gb28181pro.api.StopCruise:output_type -> gb28181pro.BaseResponse
-	0,   // 142: gb28181pro.api.StartScan:output_type -> gb28181pro.BaseResponse
-	0,   // 143: gb28181pro.api.StopScan:output_type -> gb28181pro.BaseResponse
-	0,   // 144: gb28181pro.api.SetScanLeft:output_type -> gb28181pro.BaseResponse
-	0,   // 145: gb28181pro.api.SetScanRight:output_type -> gb28181pro.BaseResponse
-	0,   // 146: gb28181pro.api.SetScanSpeed:output_type -> gb28181pro.BaseResponse
-	0,   // 147: gb28181pro.api.WiperControl:output_type -> gb28181pro.BaseResponse
-	0,   // 148: gb28181pro.api.AuxiliaryControl:output_type -> gb28181pro.BaseResponse
-	62,  // 149: gb28181pro.api.TestSip:output_type -> gb28181pro.TestSipResponse
-	64,  // 150: gb28181pro.api.SearchAlarms:output_type -> gb28181pro.SearchAlarmsResponse
-	0,   // 151: gb28181pro.api.AddPlatformChannel:output_type -> gb28181pro.BaseResponse
-	0,   // 152: gb28181pro.api.Recording:output_type -> gb28181pro.BaseResponse
-	0,   // 153: gb28181pro.api.UploadJpeg:output_type -> gb28181pro.BaseResponse
-	0,   // 154: gb28181pro.api.UpdateChannel:output_type -> gb28181pro.BaseResponse
-	0,   // 155: gb28181pro.api.PlaybackPause:output_type -> gb28181pro.BaseResponse
-	0,   // 156: gb28181pro.api.PlaybackResume:output_type -> gb28181pro.BaseResponse
-	0,   // 157: gb28181pro.api.PlaybackSeek:output_type -> gb28181pro.BaseResponse
-	0,   // 158: gb28181pro.api.PlaybackSpeed:output_type -> gb28181pro.BaseResponse
-	73,  // 159: gb28181pro.api.GetGroups:output_type -> gb28181pro.GroupsListResponse
-	0,   // 160: gb28181pro.api.AddGroup:output_type -> gb28181pro.BaseResponse
-	0,   // 161: gb28181pro.api.UpdateGroup:output_type -> gb28181pro.BaseResponse
-	0,   // 162: gb28181pro.api.DeleteGroup:output_type -> gb28181pro.BaseResponse
-	0,   // 163: gb28181pro.api.AddGroupChannel:output_type -> gb28181pro.BaseResponse
-	0,   // 164: gb28181pro.api.DeleteGroupChannel:output_type -> gb28181pro.BaseResponse
-	80,  // 165: gb28181pro.api.GetGroupChannels:output_type -> gb28181pro.GroupChannelsResponse
-	0,   // 166: gb28181pro.api.RemoveDevice:output_type -> gb28181pro.BaseResponse
-	0,   // 167: gb28181pro.api.ReceiveAlarm:output_type -> gb28181pro.BaseResponse
-	101, // [101:168] is the sub-list for method output_type
-	34,  // [34:101] is the sub-list for method input_type
-	34,  // [34:34] is the sub-list for extension type_name
-	34,  // [34:34] is the sub-list for extension extendee
-	0,   // [0:34] is the sub-list for field type_name
+	99,  // 33: gb28181pro.AlarmInfoRequest.createAt:type_name -> google.protobuf.Timestamp
+	92,  // 34: gb28181pro.StartDownloadResponse.data:type_name -> gb28181pro.StartDownloadData
+	99,  // 35: gb28181pro.DownloadProgressData.startedAt:type_name -> google.protobuf.Timestamp
+	99,  // 36: gb28181pro.DownloadProgressData.completedAt:type_name -> google.protobuf.Timestamp
+	95,  // 37: gb28181pro.DownloadProgressResponse.data:type_name -> gb28181pro.DownloadProgressData
+	2,   // 38: gb28181pro.api.List:input_type -> gb28181pro.GetDevicesRequest
+	1,   // 39: gb28181pro.api.GetDevice:input_type -> gb28181pro.GetDeviceRequest
+	2,   // 40: gb28181pro.api.GetDevices:input_type -> gb28181pro.GetDevicesRequest
+	4,   // 41: gb28181pro.api.GetChannels:input_type -> gb28181pro.GetChannelsRequest
+	6,   // 42: gb28181pro.api.SyncDevice:input_type -> gb28181pro.SyncDeviceRequest
+	8,   // 43: gb28181pro.api.DeleteDevice:input_type -> gb28181pro.DeleteDeviceRequest
+	10,  // 44: gb28181pro.api.GetSubChannels:input_type -> gb28181pro.GetSubChannelsRequest
+	14,  // 45: gb28181pro.api.ChangeAudio:input_type -> gb28181pro.ChangeAudioRequest
+	11,  // 46: gb28181pro.api.UpdateChannelStreamIdentification:input_type -> gb28181pro.Channel
+	15,  // 47: gb28181pro.api.UpdateTransport:input_type -> gb28181pro.UpdateTransportRequest
+	12,  // 48: gb28181pro.api.AddDevice:input_type -> gb28181pro.Device
+	12,  // 49: gb28181pro.api.UpdateDevice:input_type -> gb28181pro.Device
+	16,  // 50: gb28181pro.api.GetDeviceStatus:input_type -> gb28181pro.GetDeviceStatusRequest
+	18,  // 51: gb28181pro.api.GetDeviceAlarm:input_type -> gb28181pro.GetDeviceAlarmRequest
+	22,  // 52: gb28181pro.api.GetSyncStatus:input_type -> gb28181pro.GetSyncStatusRequest
+	23,  // 53: gb28181pro.api.GetSubscribeInfo:input_type -> gb28181pro.GetSubscribeInfoRequest
+	25,  // 54: gb28181pro.api.GetSnap:input_type -> gb28181pro.GetSnapRequest
+	34,  // 55: gb28181pro.api.StopConvert:input_type -> gb28181pro.ConvertStopRequest
+	35,  // 56: gb28181pro.api.StartBroadcast:input_type -> gb28181pro.BroadcastRequest
+	35,  // 57: gb28181pro.api.StopBroadcast:input_type -> gb28181pro.BroadcastRequest
+	100, // 58: gb28181pro.api.GetAllSSRC:input_type -> google.protobuf.Empty
+	27,  // 59: gb28181pro.api.GetRawChannel:input_type -> gb28181pro.GetRawChannelRequest
+	39,  // 60: gb28181pro.api.AddPlatform:input_type -> gb28181pro.Platform
+	40,  // 61: gb28181pro.api.GetPlatform:input_type -> gb28181pro.GetPlatformRequest
+	39,  // 62: gb28181pro.api.UpdatePlatform:input_type -> gb28181pro.Platform
+	41,  // 63: gb28181pro.api.DeletePlatform:input_type -> gb28181pro.DeletePlatformRequest
+	42,  // 64: gb28181pro.api.ListPlatforms:input_type -> gb28181pro.ListPlatformsRequest
+	45,  // 65: gb28181pro.api.QueryRecord:input_type -> gb28181pro.QueryRecordRequest
+	48,  // 66: gb28181pro.api.PtzControl:input_type -> gb28181pro.PtzControlRequest
+	49,  // 67: gb28181pro.api.IrisControl:input_type -> gb28181pro.IrisControlRequest
+	50,  // 68: gb28181pro.api.FocusControl:input_type -> gb28181pro.FocusControlRequest
+	51,  // 69: gb28181pro.api.QueryPreset:input_type -> gb28181pro.PresetRequest
+	51,  // 70: gb28181pro.api.AddPreset:input_type -> gb28181pro.PresetRequest
+	51,  // 71: gb28181pro.api.CallPreset:input_type -> gb28181pro.PresetRequest
+	51,  // 72: gb28181pro.api.DeletePreset:input_type -> gb28181pro.PresetRequest
+	53,  // 73: gb28181pro.api.AddCruisePoint:input_type -> gb28181pro.CruisePointRequest
+	53,  // 74: gb28181pro.api.DeleteCruisePoint:input_type -> gb28181pro.CruisePointRequest
+	54,  // 75: gb28181pro.api.SetCruiseSpeed:input_type -> gb28181pro.CruiseSpeedRequest
+	55,  // 76: gb28181pro.api.SetCruiseTime:input_type -> gb28181pro.CruiseTimeRequest
+	56,  // 77: gb28181pro.api.StartCruise:input_type -> gb28181pro.CruiseRequest
+	56,  // 78: gb28181pro.api.StopCruise:input_type -> gb28181pro.CruiseRequest
+	57,  // 79: gb28181pro.api.StartScan:input_type -> gb28181pro.ScanRequest
+	57,  // 80: gb28181pro.api.StopScan:input_type -> gb28181pro.ScanRequest
+	57,  // 81: gb28181pro.api.SetScanLeft:input_type -> gb28181pro.ScanRequest
+	57,  // 82: gb28181pro.api.SetScanRight:input_type -> gb28181pro.ScanRequest
+	58,  // 83: gb28181pro.api.SetScanSpeed:input_type -> gb28181pro.ScanSpeedRequest
+	59,  // 84: gb28181pro.api.WiperControl:input_type -> gb28181pro.WiperControlRequest
+	60,  // 85: gb28181pro.api.AuxiliaryControl:input_type -> gb28181pro.AuxiliaryControlRequest
+	61,  // 86: gb28181pro.api.TestSip:input_type -> gb28181pro.TestSipRequest
+	63,  // 87: gb28181pro.api.SearchAlarms:input_type -> gb28181pro.SearchAlarmsRequest
+	66,  // 88: gb28181pro.api.AddPlatformChannel:input_type -> gb28181pro.AddPlatformChannelRequest
+	67,  // 89: gb28181pro.api.Recording:input_type -> gb28181pro.RecordingRequest
+	68,  // 90: gb28181pro.api.UploadJpeg:input_type -> gb28181pro.UploadJpegRequest
+	21,  // 91: gb28181pro.api.UpdateChannel:input_type -> gb28181pro.UpdateChannelRequest
+	82,  // 92: gb28181pro.api.PlaybackPause:input_type -> gb28181pro.PlaybackPauseRequest
+	83,  // 93: gb28181pro.api.PlaybackResume:input_type -> gb28181pro.PlaybackResumeRequest
+	84,  // 94: gb28181pro.api.PlaybackSeek:input_type -> gb28181pro.PlaybackSeekRequest
+	85,  // 95: gb28181pro.api.PlaybackSpeed:input_type -> gb28181pro.PlaybackSpeedRequest
+	70,  // 96: gb28181pro.api.GetGroups:input_type -> gb28181pro.GetGroupsRequest
+	69,  // 97: gb28181pro.api.AddGroup:input_type -> gb28181pro.Group
+	69,  // 98: gb28181pro.api.UpdateGroup:input_type -> gb28181pro.Group
+	71,  // 99: gb28181pro.api.DeleteGroup:input_type -> gb28181pro.DeleteGroupRequest
+	76,  // 100: gb28181pro.api.AddGroupChannel:input_type -> gb28181pro.AddGroupChannelRequest
+	77,  // 101: gb28181pro.api.DeleteGroupChannel:input_type -> gb28181pro.DeleteGroupChannelRequest
+	78,  // 102: gb28181pro.api.GetGroupChannels:input_type -> gb28181pro.GetGroupChannelsRequest
+	86,  // 103: gb28181pro.api.RemoveDevice:input_type -> gb28181pro.RemoveDeviceRequest
+	87,  // 104: gb28181pro.api.ReceiveAlarm:input_type -> gb28181pro.AlarmInfoRequest
+	88,  // 105: gb28181pro.api.AddChannelWithProxy:input_type -> gb28181pro.AddChannelWithProxyRequest
+	89,  // 106: gb28181pro.api.UpdateChannelWithProxy:input_type -> gb28181pro.UpdateChannelWithProxyRequest
+	90,  // 107: gb28181pro.api.DeleteChannelWithProxy:input_type -> gb28181pro.DeleteChannelWithProxyRequest
+	91,  // 108: gb28181pro.api.StartDownload:input_type -> gb28181pro.StartDownloadRequest
+	94,  // 109: gb28181pro.api.GetDownloadProgress:input_type -> gb28181pro.GetDownloadProgressRequest
+	3,   // 110: gb28181pro.api.List:output_type -> gb28181pro.DevicesPageInfo
+	28,  // 111: gb28181pro.api.GetDevice:output_type -> gb28181pro.DeviceResponse
+	3,   // 112: gb28181pro.api.GetDevices:output_type -> gb28181pro.DevicesPageInfo
+	5,   // 113: gb28181pro.api.GetChannels:output_type -> gb28181pro.ChannelsPageInfo
+	7,   // 114: gb28181pro.api.SyncDevice:output_type -> gb28181pro.SyncStatus
+	9,   // 115: gb28181pro.api.DeleteDevice:output_type -> gb28181pro.DeleteDeviceResponse
+	5,   // 116: gb28181pro.api.GetSubChannels:output_type -> gb28181pro.ChannelsPageInfo
+	0,   // 117: gb28181pro.api.ChangeAudio:output_type -> gb28181pro.BaseResponse
+	0,   // 118: gb28181pro.api.UpdateChannelStreamIdentification:output_type -> gb28181pro.BaseResponse
+	0,   // 119: gb28181pro.api.UpdateTransport:output_type -> gb28181pro.BaseResponse
+	0,   // 120: gb28181pro.api.AddDevice:output_type -> gb28181pro.BaseResponse
+	0,   // 121: gb28181pro.api.UpdateDevice:output_type -> gb28181pro.BaseResponse
+	17,  // 122: gb28181pro.api.GetDeviceStatus:output_type -> gb28181pro.DeviceStatusResponse
+	19,  // 123: gb28181pro.api.GetDeviceAlarm:output_type -> gb28181pro.DeviceAlarmResponse
+	7,   // 124: gb28181pro.api.GetSyncStatus:output_type -> gb28181pro.SyncStatus
+	24,  // 125: gb28181pro.api.GetSubscribeInfo:output_type -> gb28181pro.SubscribeInfoResponse
+	26,  // 126: gb28181pro.api.GetSnap:output_type -> gb28181pro.SnapResponse
+	0,   // 127: gb28181pro.api.StopConvert:output_type -> gb28181pro.BaseResponse
+	36,  // 128: gb28181pro.api.StartBroadcast:output_type -> gb28181pro.BroadcastResponse
+	0,   // 129: gb28181pro.api.StopBroadcast:output_type -> gb28181pro.BaseResponse
+	38,  // 130: gb28181pro.api.GetAllSSRC:output_type -> gb28181pro.SSRCListResponse
+	11,  // 131: gb28181pro.api.GetRawChannel:output_type -> gb28181pro.Channel
+	0,   // 132: gb28181pro.api.AddPlatform:output_type -> gb28181pro.BaseResponse
+	43,  // 133: gb28181pro.api.GetPlatform:output_type -> gb28181pro.PlatformResponse
+	0,   // 134: gb28181pro.api.UpdatePlatform:output_type -> gb28181pro.BaseResponse
+	0,   // 135: gb28181pro.api.DeletePlatform:output_type -> gb28181pro.BaseResponse
+	44,  // 136: gb28181pro.api.ListPlatforms:output_type -> gb28181pro.PlatformsPageInfo
+	46,  // 137: gb28181pro.api.QueryRecord:output_type -> gb28181pro.QueryRecordResponse
+	0,   // 138: gb28181pro.api.PtzControl:output_type -> gb28181pro.BaseResponse
+	0,   // 139: gb28181pro.api.IrisControl:output_type -> gb28181pro.BaseResponse
+	0,   // 140: gb28181pro.api.FocusControl:output_type -> gb28181pro.BaseResponse
+	52,  // 141: gb28181pro.api.QueryPreset:output_type -> gb28181pro.PresetResponse
+	0,   // 142: gb28181pro.api.AddPreset:output_type -> gb28181pro.BaseResponse
+	0,   // 143: gb28181pro.api.CallPreset:output_type -> gb28181pro.BaseResponse
+	0,   // 144: gb28181pro.api.DeletePreset:output_type -> gb28181pro.BaseResponse
+	0,   // 145: gb28181pro.api.AddCruisePoint:output_type -> gb28181pro.BaseResponse
+	0,   // 146: gb28181pro.api.DeleteCruisePoint:output_type -> gb28181pro.BaseResponse
+	0,   // 147: gb28181pro.api.SetCruiseSpeed:output_type -> gb28181pro.BaseResponse
+	0,   // 148: gb28181pro.api.SetCruiseTime:output_type -> gb28181pro.BaseResponse
+	0,   // 149: gb28181pro.api.StartCruise:output_type -> gb28181pro.BaseResponse
+	0,   // 150: gb28181pro.api.StopCruise:output_type -> gb28181pro.BaseResponse
+	0,   // 151: gb28181pro.api.StartScan:output_type -> gb28181pro.BaseResponse
+	0,   // 152: gb28181pro.api.StopScan:output_type -> gb28181pro.BaseResponse
+	0,   // 153: gb28181pro.api.SetScanLeft:output_type -> gb28181pro.BaseResponse
+	0,   // 154: gb28181pro.api.SetScanRight:output_type -> gb28181pro.BaseResponse
+	0,   // 155: gb28181pro.api.SetScanSpeed:output_type -> gb28181pro.BaseResponse
+	0,   // 156: gb28181pro.api.WiperControl:output_type -> gb28181pro.BaseResponse
+	0,   // 157: gb28181pro.api.AuxiliaryControl:output_type -> gb28181pro.BaseResponse
+	62,  // 158: gb28181pro.api.TestSip:output_type -> gb28181pro.TestSipResponse
+	64,  // 159: gb28181pro.api.SearchAlarms:output_type -> gb28181pro.SearchAlarmsResponse
+	0,   // 160: gb28181pro.api.AddPlatformChannel:output_type -> gb28181pro.BaseResponse
+	0,   // 161: gb28181pro.api.Recording:output_type -> gb28181pro.BaseResponse
+	0,   // 162: gb28181pro.api.UploadJpeg:output_type -> gb28181pro.BaseResponse
+	0,   // 163: gb28181pro.api.UpdateChannel:output_type -> gb28181pro.BaseResponse
+	0,   // 164: gb28181pro.api.PlaybackPause:output_type -> gb28181pro.BaseResponse
+	0,   // 165: gb28181pro.api.PlaybackResume:output_type -> gb28181pro.BaseResponse
+	0,   // 166: gb28181pro.api.PlaybackSeek:output_type -> gb28181pro.BaseResponse
+	0,   // 167: gb28181pro.api.PlaybackSpeed:output_type -> gb28181pro.BaseResponse
+	73,  // 168: gb28181pro.api.GetGroups:output_type -> gb28181pro.GroupsListResponse
+	0,   // 169: gb28181pro.api.AddGroup:output_type -> gb28181pro.BaseResponse
+	0,   // 170: gb28181pro.api.UpdateGroup:output_type -> gb28181pro.BaseResponse
+	0,   // 171: gb28181pro.api.DeleteGroup:output_type -> gb28181pro.BaseResponse
+	0,   // 172: gb28181pro.api.AddGroupChannel:output_type -> gb28181pro.BaseResponse
+	0,   // 173: gb28181pro.api.DeleteGroupChannel:output_type -> gb28181pro.BaseResponse
+	80,  // 174: gb28181pro.api.GetGroupChannels:output_type -> gb28181pro.GroupChannelsResponse
+	0,   // 175: gb28181pro.api.RemoveDevice:output_type -> gb28181pro.BaseResponse
+	0,   // 176: gb28181pro.api.ReceiveAlarm:output_type -> gb28181pro.BaseResponse
+	0,   // 177: gb28181pro.api.AddChannelWithProxy:output_type -> gb28181pro.BaseResponse
+	0,   // 178: gb28181pro.api.UpdateChannelWithProxy:output_type -> gb28181pro.BaseResponse
+	0,   // 179: gb28181pro.api.DeleteChannelWithProxy:output_type -> gb28181pro.BaseResponse
+	93,  // 180: gb28181pro.api.StartDownload:output_type -> gb28181pro.StartDownloadResponse
+	96,  // 181: gb28181pro.api.GetDownloadProgress:output_type -> gb28181pro.DownloadProgressResponse
+	110, // [110:182] is the sub-list for method output_type
+	38,  // [38:110] is the sub-list for method input_type
+	38,  // [38:38] is the sub-list for extension type_name
+	38,  // [38:38] is the sub-list for extension extendee
+	0,   // [0:38] is the sub-list for field type_name
 }
 
 func init() { file_gb28181_proto_init() }
@@ -7196,7 +8485,7 @@ func file_gb28181_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_gb28181_proto_rawDesc), len(file_gb28181_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   90,
+			NumMessages:   99,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

@@ -10,12 +10,12 @@ import (
 	"strings"
 	"time"
 
+	task "github.com/langhuihui/gotask"
 	"m7s.live/v5/pkg"
 	"m7s.live/v5/pkg/config"
 	"m7s.live/v5/pkg/format"
 
 	m7s "m7s.live/v5"
-	"m7s.live/v5/pkg/task"
 )
 
 const (
@@ -250,9 +250,7 @@ func (t *Transformer) Start() (err error) {
 			case SnapConfig:
 				snapConfig = v
 			case map[string]any:
-				var conf config.Config
-				conf.Parse(&snapConfig)
-				conf.ParseModifyFile(v)
+				config.Parse(&snapConfig, v)
 			}
 		}
 

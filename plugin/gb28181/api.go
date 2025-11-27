@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log/slog"
 	"net/url"
 	"os"
 	"sort"
@@ -14,6 +13,7 @@ import (
 	"github.com/emiago/sipgo"
 	"github.com/emiago/sipgo/sip"
 	"gorm.io/gorm"
+	"m7s.live/v5"
 	"m7s.live/v5/pkg/util"
 
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -34,7 +34,7 @@ func (gb *GB28181Plugin) List(ctx context.Context, req *pb.GetDevicesRequest) (*
 		// 应用筛选条件
 		if req.Query != "" {
 			// 检查设备ID或名称是否包含查询字符串
-			if !strings.Contains(device.DeviceId, req.Query) && !strings.Contains(device.Name, req.Query) {
+			if !strings.Contains(device.DeviceId, req.Query) && !strings.Contains(device.Name, req.Query) && !strings.Contains(device.CustomName, req.Query) {
 				return true // 继续遍历
 			}
 		}
@@ -109,6 +109,9 @@ func (gb *GB28181Plugin) List(ctx context.Context, req *pb.GetDevicesRequest) (*
 			})
 			return true
 		})
+		sort.Slice(pbChannels, func(i, j int) bool {
+			return pbChannels[i].DeviceId < pbChannels[j].DeviceId
+		})
 
 		pbDevices = append(pbDevices, &pb.Device{
 			DeviceId:              d.DeviceId,
@@ -133,6 +136,10 @@ func (gb *GB28181Plugin) List(ctx context.Context, req *pb.GetDevicesRequest) (*
 			Port:                  int32(d.Port),
 			BroadcastPushAfterAck: d.BroadcastPushAfterAck,
 			SubscribeCatalog:      util.Conditional(d.SubscribeCatalog == 0, false, true),
+			SubscribePosition:     util.Conditional(d.SubscribePosition == 0, false, true),
+			SubscribeAlarm:        util.Conditional(d.SubscribeAlarm == 0, false, true),
+			SsrcCheck:             d.SSRCCheck,
+			Charset:               d.Charset,
 		})
 	}
 
@@ -480,6 +487,9 @@ func (gb *GB28181Plugin) UpdateDevice(ctx context.Context, req *pb.Device) (*pb.
 		if req.StreamMode != "" {
 			d.StreamMode = mrtp.StreamMode(req.StreamMode)
 		}
+		if req.Charset != "" {
+			d.Charset = req.Charset
+		}
 		if req.Password != "" {
 			d.Password = req.Password
 		}
@@ -503,6 +513,15 @@ func (gb *GB28181Plugin) UpdateDevice(ctx context.Context, req *pb.Device) (*pb.
 		} else {
 			d.SubscribeAlarm = 0 // 不订阅
 		}
+		if req.BroadcastPushAfterAck {
+			d.BroadcastPushAfterAck = req.BroadcastPushAfterAck
+		} else {
+			d.BroadcastPushAfterAck = false
+		}
+
+		// 更新 SSRC 校验开关
+		d.SSRCCheck = req.SsrcCheck
+
 		d.UpdateTime = time.Now()
 
 		// 先停止设备任务
@@ -521,6 +540,7 @@ func (gb *GB28181Plugin) UpdateDevice(ctx context.Context, req *pb.Device) (*pb.
 			"subscribe_catalog":  d.SubscribeCatalog,
 			"subscribe_position": d.SubscribePosition,
 			"subscribe_alarm":    d.SubscribeAlarm,
+			"ssrc_check":         d.SSRCCheck,
 			"update_time":        d.UpdateTime,
 		}
 
@@ -564,7 +584,7 @@ func (gb *GB28181Plugin) UpdateDevice(ctx context.Context, req *pb.Device) (*pb.
 					d.PositionSubscribeTask.Tick(nil)
 				} else {
 					if d.PositionSubscribeTask != nil {
-						d.CatalogSubscribeTask.Tick(nil)
+						d.PositionSubscribeTask.Tick(nil)
 						d.PositionSubscribeTask.Ticker.Reset(time.Hour * 999999)
 					}
 				}
@@ -653,6 +673,9 @@ func (gb *GB28181Plugin) UpdateDevice(ctx context.Context, req *pb.Device) (*pb.
 	} else {
 		updates["subscribe_position"] = 0 // 不订阅
 	}
+
+	// 更新 SSRC 校验开关
+	updates["ssrc_check"] = req.SsrcCheck
 
 	updates["update_time"] = time.Now()
 
@@ -870,77 +893,131 @@ func (gb *GB28181Plugin) UpdatePlatform(ctx context.Context, req *pb.Platform) (
 	}
 
 	// 检查平台是否存在
-	var platform gb28181.PlatformModel
-	if err := gb.DB.First(&platform, req.Id).Error; err != nil {
+	if oldPlatform, ok := gb.platforms.Get(req.ServerGBId); !ok {
 		resp.Code = 404
 		resp.Message = "platform not found"
 		return resp, nil
-	}
-
-	// 从请求中创建一个新的平台模型
-	updatedPlatform := gb28181.PlatformModel{
-		Enable:                  req.Enable,
-		Name:                    req.Name,
-		ServerGBID:              req.ServerGBId,
-		ServerGBDomain:          req.ServerGBDomain,
-		ServerIP:                req.ServerIp,
-		ServerPort:              int(req.ServerPort),
-		DeviceGBID:              req.DeviceGBId,
-		DeviceIP:                req.DeviceIp,
-		DevicePort:              int(req.DevicePort),
-		Username:                req.Username,
-		Password:                req.Password,
-		Expires:                 int(req.Expires),
-		KeepTimeout:             int(req.KeepTimeout),
-		Transport:               req.Transport,
-		CharacterSet:            req.CharacterSet,
-		PTZ:                     req.Ptz,
-		RTCP:                    req.Rtcp,
-		Status:                  req.Status,
-		ChannelCount:            int(req.ChannelCount),
-		CatalogSubscribe:        req.CatalogSubscribe,
-		AlarmSubscribe:          req.AlarmSubscribe,
-		MobilePositionSubscribe: req.MobilePositionSubscribe,
-		CatalogGroup:            int(req.CatalogGroup),
-		UpdateTime:              req.UpdateTime,
-		AsMessageChannel:        req.AsMessageChannel,
-		SendStreamIp:            req.SendStreamIp,
-		AutoPushChannel:         req.AutoPushChannel,
-		CatalogWithPlatform:     int(req.CatalogWithPlatform),
-		CatalogWithGroup:        int(req.CatalogWithGroup),
-		CatalogWithRegion:       int(req.CatalogWithRegion),
-		CivilCode:               req.CivilCode,
-		Manufacturer:            req.Manufacturer,
-		Model:                   req.Model,
-		Address:                 req.Address,
-		RegisterWay:             int(req.RegisterWay),
-		Secrecy:                 int(req.Secrecy),
-	}
-
-	// 使用 GORM 的 Updates 方法更新非零值字段
-	if err := gb.DB.Model(&platform).Updates(updatedPlatform).Error; err != nil {
-		resp.Code = 500
-		resp.Message = fmt.Sprintf("failed to update platform: %v", err)
-		return resp, nil
-	}
-	gb.DB.Model(&platform).Find(&platform)
-	// 处理平台启用状态变化
-	if platform.Enable {
-		// 如果存在旧的platform实例，先停止并移除
-		if oldPlatform, ok := gb.platforms.Get(platform.ServerGBID); ok {
-			oldPlatform.Unregister()
-			oldPlatform.Stop(fmt.Errorf("platform updated"))
-			oldPlatform.WaitStopped()
-		}
-		// 创建新的Platform实例
-		platformInstance := NewPlatform(&platform, gb, false)
-		// 添加到任务系统
-		gb.platforms.AddTask(platformInstance)
 	} else {
-		// 如果平台被禁用，停止并移除旧的platform实例
-		if oldPlatform, ok := gb.platforms.Get(platform.ServerGBID); ok {
+		// 记录原始值，用于检查是否有变化
+		oldEnable := oldPlatform.PlatformModel.Enable
+		oldExpires := oldPlatform.PlatformModel.Expires
+		oldKeepTimeout := oldPlatform.PlatformModel.KeepTimeout
+
+		// 更新oldPlatform中的字段
+		if req.Name != "" {
+			oldPlatform.PlatformModel.Name = req.Name
+		}
+		if req.ServerGBDomain != "" {
+			oldPlatform.PlatformModel.ServerGBDomain = req.ServerGBDomain
+		}
+		if req.ServerIp != "" {
+			oldPlatform.PlatformModel.ServerIP = req.ServerIp
+		}
+		if req.ServerPort > 0 {
+			oldPlatform.PlatformModel.ServerPort = int(req.ServerPort)
+		}
+		if req.DeviceGBId != "" {
+			oldPlatform.PlatformModel.DeviceGBID = req.DeviceGBId
+		}
+		if req.DeviceIp != "" {
+			oldPlatform.PlatformModel.DeviceIP = req.DeviceIp
+		}
+		if req.DevicePort > 0 {
+			oldPlatform.PlatformModel.DevicePort = int(req.DevicePort)
+		}
+		if req.Username != "" {
+			oldPlatform.PlatformModel.Username = req.Username
+		}
+		if req.Password != "" {
+			oldPlatform.PlatformModel.Password = req.Password
+		}
+		if req.Expires > 0 {
+			oldPlatform.PlatformModel.Expires = int(req.Expires)
+		}
+		if req.KeepTimeout > 0 {
+			oldPlatform.PlatformModel.KeepTimeout = int(req.KeepTimeout)
+		}
+		if req.Transport != "" {
+			oldPlatform.PlatformModel.Transport = req.Transport
+		}
+		if req.CharacterSet != "" {
+			oldPlatform.PlatformModel.CharacterSet = req.CharacterSet
+		}
+
+		oldPlatform.PlatformModel.Enable = req.Enable
+		oldPlatform.PlatformModel.PTZ = req.Ptz
+		oldPlatform.PlatformModel.RTCP = req.Rtcp
+		oldPlatform.PlatformModel.CatalogSubscribe = req.CatalogSubscribe
+		oldPlatform.PlatformModel.AlarmSubscribe = req.AlarmSubscribe
+		oldPlatform.PlatformModel.MobilePositionSubscribe = req.MobilePositionSubscribe
+
+		if req.CatalogGroup > 0 {
+			oldPlatform.PlatformModel.CatalogGroup = int(req.CatalogGroup)
+		}
+		if req.SendStreamIp != "" {
+			oldPlatform.PlatformModel.SendStreamIp = req.SendStreamIp
+		}
+
+		oldPlatform.PlatformModel.AsMessageChannel = req.AsMessageChannel
+		oldPlatform.PlatformModel.AutoPushChannel = req.AutoPushChannel
+
+		if req.CatalogWithPlatform > 0 {
+			oldPlatform.PlatformModel.CatalogWithPlatform = int(req.CatalogWithPlatform)
+		}
+		if req.CatalogWithGroup > 0 {
+			oldPlatform.PlatformModel.CatalogWithGroup = int(req.CatalogWithGroup)
+		}
+		if req.CatalogWithRegion > 0 {
+			oldPlatform.PlatformModel.CatalogWithRegion = int(req.CatalogWithRegion)
+		}
+		if req.CivilCode != "" {
+			oldPlatform.PlatformModel.CivilCode = req.CivilCode
+		}
+		if req.Manufacturer != "" {
+			oldPlatform.PlatformModel.Manufacturer = req.Manufacturer
+		}
+		if req.Model != "" {
+			oldPlatform.PlatformModel.Model = req.Model
+		}
+		if req.Address != "" {
+			oldPlatform.PlatformModel.Address = req.Address
+		}
+		if req.RegisterWay > 0 {
+			oldPlatform.PlatformModel.RegisterWay = int(req.RegisterWay)
+		}
+		if req.Secrecy > 0 {
+			oldPlatform.PlatformModel.Secrecy = int(req.Secrecy)
+		}
+
+		// 更新时间，使用UTC时间
+		oldPlatform.PlatformModel.UpdateTime = time.Now().UTC().Format("2006-01-02 15:04:05")
+
+		// 使用 GORM 的 Updates 方法更新数据库
+		if err := gb.DB.Model(&gb28181.PlatformModel{}).Where("server_gb_id = ?", req.ServerGBId).Updates(oldPlatform.PlatformModel).Error; err != nil {
+			resp.Code = 500
+			resp.Message = fmt.Sprintf("failed to update platform: %v", err)
+			return resp, nil
+		}
+
+		// 检查关键字段是否有变化
+		enableChanged := oldEnable != oldPlatform.PlatformModel.Enable
+		expiresChanged := oldExpires != oldPlatform.PlatformModel.Expires
+		keepTimeoutChanged := oldKeepTimeout != oldPlatform.PlatformModel.KeepTimeout
+
+		// 处理平台启用状态变化
+		if oldPlatform.PlatformModel.Enable {
+			// 如果平台被启用或关键参数变化，需要更新注册和心跳任务
+			if enableChanged || expiresChanged || keepTimeoutChanged {
+				oldPlatform.Unregister()
+				oldPlatform.register.Ticker.Reset(time.Second * time.Duration(oldPlatform.PlatformModel.Expires))
+				oldPlatform.register.Tick(nil)
+				oldPlatform.register.platformKeepAliveTask.Ticker.Reset(time.Second * time.Duration(oldPlatform.PlatformModel.KeepTimeout))
+			}
+		} else {
+			// 如果平台被禁用，停止并移除旧的platform实例
 			oldPlatform.Unregister()
-			oldPlatform.Stop(fmt.Errorf("platform disabled"))
+			oldPlatform.register.Ticker.Reset(time.Hour * 999999)
+			oldPlatform.register.platformKeepAliveTask.Ticker.Reset(time.Hour * 999999)
 		}
 	}
 
@@ -975,97 +1052,111 @@ func (gb *GB28181Plugin) DeletePlatform(ctx context.Context, req *pb.DeletePlatf
 func (gb *GB28181Plugin) ListPlatforms(ctx context.Context, req *pb.ListPlatformsRequest) (*pb.PlatformsPageInfo, error) {
 	resp := &pb.PlatformsPageInfo{}
 
-	if gb.DB == nil {
-		resp.Code = 500
-		resp.Message = "database not initialized"
-		return resp, nil
-	}
+	// 从内存中读取平台信息，而不是从数据库查询
+	var pbPlatforms []*pb.Platform
+	var filteredPlatforms []*Platform
 
-	var platforms []gb28181.PlatformModel
-	var total int64
+	// 遍历内存中的平台集合
+	gb.platforms.Range(func(platform *Platform) bool {
+		// 应用筛选条件
+		if req.Query != "" {
+			// 检查平台名称、ServerGBID或DeviceGBID是否包含查询字符串
+			if !strings.Contains(platform.PlatformModel.Name, req.Query) &&
+				!strings.Contains(platform.PlatformModel.ServerGBID, req.Query) &&
+				!strings.Contains(platform.PlatformModel.DeviceGBID, req.Query) {
+				return true // 继续遍历
+			}
+		}
 
-	// 构建查询条件
-	query := gb.DB.Model(&gb28181.PlatformModel{})
-	if req.Query != "" {
-		query = query.Where("name LIKE ? OR server_gb_id LIKE ? OR device_gb_id LIKE ?",
-			"%"+req.Query+"%", "%"+req.Query+"%", "%"+req.Query+"%")
-	}
-	if req.Status {
-		query = query.Where("status = ?", true)
-	}
+		// 如果需要筛选在线平台
+		if req.Enable != -1 && req.Enable != int32(util.Conditional(platform.PlatformModel.Enable, 1, 0)) {
+			return true // 继续遍历
+		}
 
-	// 获取总数
-	if err := query.Count(&total).Error; err != nil {
-		resp.Code = 500
-		resp.Message = fmt.Sprintf("failed to count platforms: %v", err)
-		return resp, nil
-	}
+		// 添加到过滤后的平台列表
+		filteredPlatforms = append(filteredPlatforms, platform)
+		return true
+	})
 
-	// 查询平台列表
-	// 当Page和Count都为0时，不做分页，返回所有数据
-	if req.Page == 0 && req.Count == 0 {
-		// 不分页，查询所有数据
-		if err := query.Find(&platforms).Error; err != nil {
-			resp.Code = 500
-			resp.Message = fmt.Sprintf("failed to list platforms: %v", err)
+	// 计算总数
+	total := len(filteredPlatforms)
+	resp.Total = int32(total)
+
+	// 按ServerGBID对平台列表进行排序
+	sort.Slice(filteredPlatforms, func(i, j int) bool {
+		return filteredPlatforms[i].PlatformModel.ServerGBID < filteredPlatforms[j].PlatformModel.ServerGBID
+	})
+
+	// 处理分页
+	var pagePlatforms []*Platform
+	if req.Page > 0 && req.Count > 0 {
+		// 计算起始和结束索引
+		start := int(req.Page-1) * int(req.Count)
+		end := start + int(req.Count)
+
+		// 边界检查
+		if start >= total {
+			// 超出范围，返回空列表
+			resp.Code = 0
+			resp.Message = "success"
+			resp.List = pbPlatforms
 			return resp, nil
 		}
+
+		if end > total {
+			end = total
+		}
+
+		// 应用分页
+		pagePlatforms = filteredPlatforms[start:end]
 	} else {
-		// 分页查询
-		if err := query.Offset(int(req.Page-1) * int(req.Count)).
-			Limit(int(req.Count)).
-			Find(&platforms).Error; err != nil {
-			resp.Code = 500
-			resp.Message = fmt.Sprintf("failed to list platforms: %v", err)
-			return resp, nil
-		}
+		// 不分页，返回所有数据
+		pagePlatforms = filteredPlatforms
 	}
 
 	// 转换为proto消息
-	var pbPlatforms []*pb.Platform
-	for _, p := range platforms {
+	for _, p := range pagePlatforms {
 		pbPlatforms = append(pbPlatforms, &pb.Platform{
-			Enable:                  p.Enable,
-			Name:                    p.Name,
-			ServerGBId:              p.ServerGBID,
-			ServerGBDomain:          p.ServerGBDomain,
-			ServerIp:                p.ServerIP,
-			ServerPort:              int32(p.ServerPort),
-			DeviceGBId:              p.DeviceGBID,
-			DeviceIp:                p.DeviceIP,
-			DevicePort:              int32(p.DevicePort),
-			Username:                p.Username,
-			Password:                p.Password,
-			Expires:                 int32(p.Expires),
-			KeepTimeout:             int32(p.KeepTimeout),
-			Transport:               p.Transport,
-			CharacterSet:            p.CharacterSet,
-			Ptz:                     p.PTZ,
-			Rtcp:                    p.RTCP,
-			Status:                  p.Status,
-			ChannelCount:            int32(p.ChannelCount),
-			CatalogSubscribe:        p.CatalogSubscribe,
-			AlarmSubscribe:          p.AlarmSubscribe,
-			MobilePositionSubscribe: p.MobilePositionSubscribe,
-			CatalogGroup:            int32(p.CatalogGroup),
-			UpdateTime:              p.UpdateTime,
-			CreateTime:              p.CreateTime,
-			AsMessageChannel:        p.AsMessageChannel,
-			SendStreamIp:            p.SendStreamIp,
-			AutoPushChannel:         p.AutoPushChannel,
-			CatalogWithPlatform:     int32(p.CatalogWithPlatform),
-			CatalogWithGroup:        int32(p.CatalogWithGroup),
-			CatalogWithRegion:       int32(p.CatalogWithRegion),
-			CivilCode:               p.CivilCode,
-			Manufacturer:            p.Manufacturer,
-			Model:                   p.Model,
-			Address:                 p.Address,
-			RegisterWay:             int32(p.RegisterWay),
-			Secrecy:                 int32(p.Secrecy),
+			Enable:                  p.PlatformModel.Enable,
+			Name:                    p.PlatformModel.Name,
+			ServerGBId:              p.PlatformModel.ServerGBID,
+			ServerGBDomain:          p.PlatformModel.ServerGBDomain,
+			ServerIp:                p.PlatformModel.ServerIP,
+			ServerPort:              int32(p.PlatformModel.ServerPort),
+			DeviceGBId:              p.PlatformModel.DeviceGBID,
+			DeviceIp:                p.PlatformModel.DeviceIP,
+			DevicePort:              int32(p.PlatformModel.DevicePort),
+			Username:                p.PlatformModel.Username,
+			Password:                p.PlatformModel.Password,
+			Expires:                 int32(p.PlatformModel.Expires),
+			KeepTimeout:             int32(p.PlatformModel.KeepTimeout),
+			Transport:               p.PlatformModel.Transport,
+			CharacterSet:            p.PlatformModel.CharacterSet,
+			Ptz:                     p.PlatformModel.PTZ,
+			Rtcp:                    p.PlatformModel.RTCP,
+			Status:                  p.PlatformModel.Status,
+			ChannelCount:            int32(p.PlatformModel.ChannelCount),
+			CatalogSubscribe:        p.PlatformModel.CatalogSubscribe,
+			AlarmSubscribe:          p.PlatformModel.AlarmSubscribe,
+			MobilePositionSubscribe: p.PlatformModel.MobilePositionSubscribe,
+			CatalogGroup:            int32(p.PlatformModel.CatalogGroup),
+			UpdateTime:              p.PlatformModel.UpdateTime,
+			CreateTime:              p.PlatformModel.CreateTime,
+			AsMessageChannel:        p.PlatformModel.AsMessageChannel,
+			SendStreamIp:            p.PlatformModel.SendStreamIp,
+			AutoPushChannel:         p.PlatformModel.AutoPushChannel,
+			CatalogWithPlatform:     int32(p.PlatformModel.CatalogWithPlatform),
+			CatalogWithGroup:        int32(p.PlatformModel.CatalogWithGroup),
+			CatalogWithRegion:       int32(p.PlatformModel.CatalogWithRegion),
+			CivilCode:               p.PlatformModel.CivilCode,
+			Manufacturer:            p.PlatformModel.Manufacturer,
+			Model:                   p.PlatformModel.Model,
+			Address:                 p.PlatformModel.Address,
+			RegisterWay:             int32(p.PlatformModel.RegisterWay),
+			Secrecy:                 int32(p.PlatformModel.Secrecy),
 		})
 	}
 
-	resp.Total = int32(total)
 	resp.List = pbPlatforms
 	resp.Code = 0
 	resp.Message = "success"
@@ -1077,6 +1168,7 @@ func (gb *GB28181Plugin) QueryRecord(ctx context.Context, req *pb.QueryRecordReq
 	resp := &pb.QueryRecordResponse{
 		Code:    0,
 		Message: "",
+		Data:    []*pb.RecordItem{},
 	}
 	startTime, endTime, err := util.TimeRangeQueryParse(url.Values{"range": []string{req.Range}, "start": []string{req.Start}, "end": []string{req.End}})
 	// 获取设备和通道
@@ -1127,14 +1219,21 @@ func (gb *GB28181Plugin) QueryRecord(ctx context.Context, req *pb.QueryRecordReq
 		resp.DeviceId = req.DeviceId
 		resp.ChannelId = req.ChannelId
 		resp.Name = firstResponse.Name
-		resp.Count = int32(recordReq.ReceivedNum)
+		resp.SumNum = int32(recordReq.SumNum)
 		if !firstResponse.LastTime.IsZero() {
 			resp.LastTime = timestamppb.New(firstResponse.LastTime)
 		}
 	}
 
 	for _, record := range recordReq.Response {
+		if len(record.RecordList.Item) == 0 {
+			continue
+		}
 		for _, item := range record.RecordList.Item {
+			// 过滤无效的记录（所有字段都为空）
+			if item.DeviceID == "" && item.StartTime == "" {
+				continue
+			}
 			resp.Data = append(resp.Data, &pb.RecordItem{
 				DeviceId:   item.DeviceID,
 				Name:       item.Name,
@@ -1149,12 +1248,13 @@ func (gb *GB28181Plugin) QueryRecord(ctx context.Context, req *pb.QueryRecordReq
 		}
 	}
 
+	resp.Count = int32(recordReq.SumNum)
 	resp.Code = 0
 	resp.Message = fmt.Sprintf("success, received %d/%d records", recordReq.ReceivedNum, recordReq.SumNum)
 
-	// 排序录像列表，按StartTime升序排序
+	// 排序录像列表，按StartTime降序排序（最新的在前）
 	sort.Slice(resp.Data, func(i, j int) bool {
-		return resp.Data[i].StartTime < resp.Data[j].StartTime
+		return resp.Data[i].StartTime > resp.Data[j].StartTime
 	})
 
 	// 清理请求
@@ -1217,6 +1317,7 @@ func (gb *GB28181Plugin) TestSip(ctx context.Context, req *pb.TestSipRequest) (*
 	device := &Device{
 		DeviceId:   "34020000002000000001",
 		SipIp:      "192.168.1.106",
+		LocalPort:  5060,
 		Port:       5060,
 		IP:         "192.168.1.102",
 		StreamMode: "TCP-PASSIVE",
@@ -1244,20 +1345,15 @@ func (gb *GB28181Plugin) TestSip(ctx context.Context, req *pb.TestSipRequest) (*
 	//    Method: INVITE
 	//    Request-URI: sip:34020000001320000006@192.168.1.102:5060
 	//    [Resent Packet: False]
-	// 初始化SIP客户端
-	opts := &slog.HandlerOptions{
-		Level:     slog.LevelDebug,
-		AddSource: true,
-	}
-	logHandler := slog.NewJSONHandler(os.Stdout, opts)
-	logger := slog.New(logHandler)
-	slog.SetDefault(logger) // 设置为默认日志记录器
-	device.client, _ = sipgo.NewClient(gb.ua, sipgo.WithClientLogger(logger), sipgo.WithClientHostname("192.168.1.106"))
-	if device.client == nil {
+	// 根据设备的SipIp、LocalPort和Transport获取或创建对应的Client
+	// 测试默认使用UDP
+	client, err := gb.getOrCreateClient(device.SipIp, device.LocalPort, "UDP")
+	if err != nil {
 		resp.Code = 500
-		resp.Message = "failed to create sip client"
+		resp.Message = fmt.Sprintf("创建Client失败: %v", err)
 		return resp, nil
 	}
+	device.client = client
 
 	// 构建目标URI
 	recipient := sip.Uri{
@@ -1306,16 +1402,7 @@ func (gb *GB28181Plugin) TestSip(ctx context.Context, req *pb.TestSipRequest) (*
 		},
 	}
 	userAgentHeader := sip.NewHeader("User-Agent", "WVP-Pro v2.7.3.20241218")
-	//Via: SIP/2.0/UDP 192.168.1.106:5060;branch=z9hG4bK9279674404;rport
-	viaHeader := sip.ViaHeader{
-		ProtocolName:    "SIP",
-		ProtocolVersion: "2.0",
-		Transport:       "UDP",
-		Host:            "192.168.1.106",
-		Port:            5060,
-		Params:          sip.HeaderParams(sip.NewParams()),
-	}
-	viaHeader.Params.Add("branch", "z9hG4bK9279674404").Add("rport", "")
+	// 不手动添加Via头部，让Client自动创建
 
 	csqHeader := sip.CSeqHeader{
 		SeqNo:      3,
@@ -1327,7 +1414,6 @@ func (gb *GB28181Plugin) TestSip(ctx context.Context, req *pb.TestSipRequest) (*
 	request.AppendHeader(subjectHeader)
 	request.AppendHeader(&toHeader)
 	request.AppendHeader(userAgentHeader)
-	request.AppendHeader(&viaHeader)
 
 	// 设置消息体
 	request.SetBody([]byte(strings.Join(sdpInfo, "\r\n") + "\r\n"))
@@ -2895,7 +2981,7 @@ func (gb *GB28181Plugin) UpdateChannel(ctx context.Context, req *pb.UpdateChanne
 	}
 
 	// 记录日志
-	gb.Info("通道信息已更新",
+	gb.Debug("通道信息已更新",
 		"通道ID", req.Id,
 		"自定义通道ID", channel.DeviceChannel.CustomChannelId,
 		"自定义名称", channel.DeviceChannel.CustomName)
@@ -2903,5 +2989,585 @@ func (gb *GB28181Plugin) UpdateChannel(ctx context.Context, req *pb.UpdateChanne
 	// 返回成功响应
 	resp.Code = 0
 	resp.Message = "通道信息更新成功"
+	return resp, nil
+}
+
+// AddChannelWithProxy 添加通道并关联拉流代理
+func (gb *GB28181Plugin) AddChannelWithProxy(ctx context.Context, req *pb.AddChannelWithProxyRequest) (*pb.BaseResponse, error) {
+	resp := &pb.BaseResponse{}
+
+	// 1. 参数验证
+	if req.ChannelId == "" {
+		resp.Code = 400
+		resp.Message = "channelId不能为空"
+		return resp, nil
+	}
+	if req.Name == "" {
+		resp.Code = 400
+		resp.Message = "name不能为空"
+		return resp, nil
+	}
+	if req.StreamPath == "" {
+		resp.Code = 400
+		resp.Message = "streamPath不能为空"
+		return resp, nil
+	}
+
+	// 2. 检查数据库连接
+	if gb.DB == nil {
+		resp.Code = 500
+		resp.Message = "数据库未初始化"
+		return resp, nil
+	}
+
+	// 3. 重复检查 - 检查customChannelId是否已存在
+	var existingChannel gb28181.DeviceChannel
+	if err := gb.DB.Where("custom_channel_id = ?", req.ChannelId).First(&existingChannel).Error; err == nil {
+		resp.Code = 409
+		resp.Message = "通道ID已存在，请使用其他ID"
+		return resp, nil
+	} else if err != gorm.ErrRecordNotFound {
+		resp.Code = 500
+		resp.Message = fmt.Sprintf("检查通道ID失败: %v", err)
+		return resp, nil
+	}
+
+	// 4. 生成ID和相关字段
+	channelID := req.ChannelId + "_" + req.ChannelId
+	deviceID := req.ChannelId
+
+	// 5. 创建DeviceChannel实例
+	now := time.Now().Format("2006-01-02 15:04:05")
+	deviceChannel := &gb28181.DeviceChannel{
+		ID:                 channelID,
+		DeviceId:           deviceID,
+		ChannelId:          req.ChannelId,
+		CustomChannelId:    req.ChannelId,
+		Name:               req.Name,
+		CustomName:         req.Name,
+		Manufacturer:       req.Manufacturer,
+		Model:              req.Model,
+		Owner:              req.Owner,
+		CivilCode:          req.CivilCode,
+		Block:              req.Block,
+		Address:            req.Address,
+		Port:               int(req.Port),
+		Parental:           int(req.Parental),
+		ParentId:           req.ParentId,
+		SafetyWay:          int(req.SafetyWay),
+		RegisterWay:        int(req.RegisterWay),
+		CertNum:            req.CertNum,
+		Certifiable:        int(req.Certifiable),
+		ErrCode:            int(req.ErrCode),
+		EndTime:            req.EndTime,
+		Secrecy:            int(req.Secrecy),
+		IPAddress:          req.IpAddress,
+		Password:           req.Password,
+		PTZType:            int(req.PtzType),
+		PositionType:       int(req.PositionType),
+		RoomType:           int(req.RoomType),
+		UseType:            int(req.UseType),
+		SupplyLightType:    int(req.SupplyLightType),
+		DirectionType:      int(req.DirectionType),
+		Resolution:         req.Resolution,
+		BusinessGroupID:    req.BusinessGroupId,
+		DownloadSpeed:      req.DownloadSpeed,
+		SVCSpaceSupportMod: int(req.SvcSpaceSupportMod),
+		SVCTimeSupportMode: int(req.SvcTimeSupportMode),
+		Status:             gb28181.ChannelStatus(req.Status),
+		CreateTime:         now,
+		StreamPath:         req.StreamPath, // 关联拉流代理的流路径
+	}
+
+	// 6. 处理经纬度 - 字符串转float64
+	if req.Longitude != "" {
+		// 使用fmt.Sscanf解析字符串为float64
+		var lon float64
+		if _, err := fmt.Sscanf(req.Longitude, "%f", &lon); err == nil {
+			deviceChannel.Longitude = lon
+			deviceChannel.GbLongitude = lon
+		}
+	}
+	if req.Latitude != "" {
+		var lat float64
+		if _, err := fmt.Sscanf(req.Latitude, "%f", &lat); err == nil {
+			deviceChannel.Latitude = lat
+			deviceChannel.GbLatitude = lat
+		}
+	}
+
+	// 7. 设置默认状态
+	if deviceChannel.Status == "" {
+		deviceChannel.Status = gb28181.ChannelOffStatus
+	}
+
+	// 8. 保存到数据库
+	if err := gb.DB.Create(deviceChannel).Error; err != nil {
+		resp.Code = 500
+		resp.Message = fmt.Sprintf("保存通道失败: %v", err)
+		return resp, nil
+	}
+
+	// 9. 添加到内存集合
+	channel := &Channel{
+		DeviceChannel: deviceChannel,
+		Device:        nil, // 这是虚拟设备通道，不关联真实GB设备
+		Logger:        gb.Logger.With("channel", channelID),
+	}
+	gb.channels.Add(channel)
+
+	// 10. 记录日志
+	gb.Info("添加通道成功",
+		"channelId", req.ChannelId,
+		"id", channelID,
+		"deviceId", deviceID,
+		"streamPath", req.StreamPath,
+		"name", req.Name)
+
+	resp.Code = 0
+	resp.Message = "通道添加成功"
+	return resp, nil
+}
+
+// UpdateChannelWithProxy 更新通道信息
+func (gb *GB28181Plugin) UpdateChannelWithProxy(ctx context.Context, req *pb.UpdateChannelWithProxyRequest) (*pb.BaseResponse, error) {
+	resp := &pb.BaseResponse{}
+
+	// 1. 参数验证
+	if req.ChannelId == "" {
+		resp.Code = 400
+		resp.Message = "channelId不能为空"
+		return resp, nil
+	}
+
+	// 2. 检查数据库连接
+	if gb.DB == nil {
+		resp.Code = 500
+		resp.Message = "数据库未初始化"
+		return resp, nil
+	}
+
+	// 3. 生成ID并查找通道
+	channelID := req.ChannelId + "_" + req.ChannelId
+	var existingChannel gb28181.DeviceChannel
+	if err := gb.DB.Where("id = ?", channelID).First(&existingChannel).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			resp.Code = 404
+			resp.Message = "通道不存在"
+			return resp, nil
+		}
+		resp.Code = 500
+		resp.Message = fmt.Sprintf("查询通道失败: %v", err)
+		return resp, nil
+	}
+
+	// 4. 构建更新字段（只更新非空字段）
+	updates := make(map[string]interface{})
+
+	if req.StreamPath != "" {
+		updates["stream_path"] = req.StreamPath
+	}
+	if req.Name != "" {
+		updates["name"] = req.Name
+		updates["custom_name"] = req.Name
+	}
+	if req.Manufacturer != "" {
+		updates["manufacturer"] = req.Manufacturer
+	}
+	if req.Model != "" {
+		updates["model"] = req.Model
+	}
+	if req.Owner != "" {
+		updates["owner"] = req.Owner
+	}
+	if req.CivilCode != "" {
+		updates["civil_code"] = req.CivilCode
+	}
+	if req.Block != "" {
+		updates["block"] = req.Block
+	}
+	if req.Address != "" {
+		updates["address"] = req.Address
+	}
+	if req.Port > 0 {
+		updates["port"] = req.Port
+	}
+	if req.Parental >= 0 {
+		updates["parental"] = req.Parental
+	}
+	if req.ParentId != "" {
+		updates["parent_id"] = req.ParentId
+	}
+	if req.SafetyWay >= 0 {
+		updates["safety_way"] = req.SafetyWay
+	}
+	if req.RegisterWay >= 0 {
+		updates["register_way"] = req.RegisterWay
+	}
+	if req.CertNum != "" {
+		updates["cert_num"] = req.CertNum
+	}
+	if req.Certifiable >= 0 {
+		updates["certifiable"] = req.Certifiable
+	}
+	if req.ErrCode >= 0 {
+		updates["err_code"] = req.ErrCode
+	}
+	if req.EndTime != "" {
+		updates["end_time"] = req.EndTime
+	}
+	if req.Secrecy >= 0 {
+		updates["secrecy"] = req.Secrecy
+	}
+	if req.IpAddress != "" {
+		updates["ip_address"] = req.IpAddress
+	}
+	if req.Password != "" {
+		updates["password"] = req.Password
+	}
+	if req.PtzType >= 0 {
+		updates["ptz_type"] = req.PtzType
+	}
+	if req.PositionType >= 0 {
+		updates["position_type"] = req.PositionType
+	}
+	if req.RoomType >= 0 {
+		updates["room_type"] = req.RoomType
+	}
+	if req.UseType >= 0 {
+		updates["use_type"] = req.UseType
+	}
+	if req.SupplyLightType >= 0 {
+		updates["supply_light_type"] = req.SupplyLightType
+	}
+	if req.DirectionType >= 0 {
+		updates["direction_type"] = req.DirectionType
+	}
+	if req.Resolution != "" {
+		updates["resolution"] = req.Resolution
+	}
+	if req.BusinessGroupId != "" {
+		updates["business_group_id"] = req.BusinessGroupId
+	}
+	if req.DownloadSpeed != "" {
+		updates["download_speed"] = req.DownloadSpeed
+	}
+	if req.SvcSpaceSupportMod >= 0 {
+		updates["svc_space_support_mod"] = req.SvcSpaceSupportMod
+	}
+	if req.SvcTimeSupportMode >= 0 {
+		updates["svc_time_support_mode"] = req.SvcTimeSupportMode
+	}
+	if req.Status != "" {
+		updates["status"] = req.Status
+	}
+	if req.Longitude != "" {
+		var lon float64
+		if _, err := fmt.Sscanf(req.Longitude, "%f", &lon); err == nil {
+			updates["longitude"] = lon
+			updates["gb_longitude"] = lon
+		}
+	}
+	if req.Latitude != "" {
+		var lat float64
+		if _, err := fmt.Sscanf(req.Latitude, "%f", &lat); err == nil {
+			updates["latitude"] = lat
+			updates["gb_latitude"] = lat
+		}
+	}
+
+	// 5. 如果没有要更新的字段
+	if len(updates) == 0 {
+		resp.Code = 400
+		resp.Message = "没有要更新的字段"
+		return resp, nil
+	}
+
+	// 6. 更新数据库
+	if err := gb.DB.Model(&gb28181.DeviceChannel{}).Where("id = ?", channelID).Updates(updates).Error; err != nil {
+		resp.Code = 500
+		resp.Message = fmt.Sprintf("更新通道失败: %v", err)
+		return resp, nil
+	}
+
+	// 7. 更新内存中的通道（如果存在）
+	if channel, ok := gb.channels.Get(channelID); ok {
+		// 重新从数据库加载最新数据
+		if err := gb.DB.Where("id = ?", channelID).First(channel.DeviceChannel).Error; err == nil {
+			gb.Info("内存中的通道已更新", "channelId", req.ChannelId)
+		}
+	}
+
+	// 8. 记录日志
+	gb.Info("更新通道成功",
+		"channelId", req.ChannelId,
+		"id", channelID,
+		"updatedFields", len(updates))
+
+	resp.Code = 0
+	resp.Message = "通道更新成功"
+	return resp, nil
+}
+
+// DeleteChannelWithProxy 删除通道
+func (gb *GB28181Plugin) DeleteChannelWithProxy(ctx context.Context, req *pb.DeleteChannelWithProxyRequest) (*pb.BaseResponse, error) {
+	resp := &pb.BaseResponse{}
+
+	// 1. 参数验证
+	if req.ChannelId == "" {
+		resp.Code = 400
+		resp.Message = "channelId不能为空"
+		return resp, nil
+	}
+
+	// 2. 检查数据库连接
+	if gb.DB == nil {
+		resp.Code = 500
+		resp.Message = "数据库未初始化"
+		return resp, nil
+	}
+
+	// 3. 生成ID
+	channelID := req.ChannelId + "_" + req.ChannelId
+
+	// 4. 检查通道是否存在
+	var existingChannel gb28181.DeviceChannel
+	if err := gb.DB.Where("id = ?", channelID).First(&existingChannel).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			resp.Code = 404
+			resp.Message = "通道不存在"
+			return resp, nil
+		}
+		resp.Code = 500
+		resp.Message = fmt.Sprintf("查询通道失败: %v", err)
+		return resp, nil
+	}
+
+	// 5. 从数据库删除
+	if err := gb.DB.Where("id = ?", channelID).Delete(&gb28181.DeviceChannel{}).Error; err != nil {
+		resp.Code = 500
+		resp.Message = fmt.Sprintf("删除通道失败: %v", err)
+		return resp, nil
+	}
+
+	// 6. 从内存中移除
+	if channel, ok := gb.channels.Get(channelID); ok {
+		gb.channels.RemoveByKey(channel.ID)
+		gb.Info("从内存中移除通道", "channelId", req.ChannelId)
+	}
+
+	// 7. 记录日志
+	gb.Info("删除通道成功",
+		"channelId", req.ChannelId,
+		"id", channelID,
+		"streamPath", existingChannel.StreamPath)
+
+	resp.Code = 0
+	resp.Message = "通道删除成功"
+	return resp, nil
+}
+
+// StartDownload 实现发起录像下载接口
+func (gb *GB28181Plugin) StartDownload(ctx context.Context, req *pb.StartDownloadRequest) (*pb.StartDownloadResponse, error) {
+	resp := &pb.StartDownloadResponse{}
+
+	// 1. 参数验证
+	if req.DeviceId == "" || req.ChannelId == "" {
+		resp.Code = 400
+		resp.Message = "deviceId 和 channelId 不能为空"
+		return resp, nil
+	}
+
+	if req.Start == "" || req.End == "" {
+		resp.Code = 400
+		resp.Message = "start 和 end 时间不能为空"
+		return resp, nil
+	}
+
+	// 2. 解析时间范围
+	startTime, endTime, err := util.TimeRangeQueryParse(url.Values{
+		"start": []string{req.Start},
+		"end":   []string{req.End},
+	})
+	if err != nil {
+		resp.Code = 400
+		resp.Message = fmt.Sprintf("时间解析失败: %v", err)
+		return resp, nil
+	}
+
+	// 3. 验证设备和通道是否存在
+	device, ok := gb.devices.Get(req.DeviceId)
+	if !ok {
+		resp.Code = 404
+		resp.Message = "设备不存在"
+		return resp, nil
+	}
+
+	channelKey := req.DeviceId + "_" + req.ChannelId
+	_, ok = device.channels.Get(channelKey)
+	if !ok {
+		resp.Code = 404
+		resp.Message = "通道不存在"
+		return resp, nil
+	}
+
+	// 4. 生成下载任务ID（复合键）
+	downloadId := fmt.Sprintf("%s_%s_%d_%d", req.DeviceId, req.ChannelId, startTime.Unix(), endTime.Unix())
+
+	// 5. 优先从缓存表查询已完成的下载
+	if gb.DB != nil {
+		var cachedRecord gb28181.GB28181Record
+		if err := gb.DB.Where("download_id = ? AND status = ?", downloadId, "completed").First(&cachedRecord).Error; err == nil {
+			// 检查文件是否存在
+			if _, err := os.Stat(cachedRecord.FilePath); err == nil {
+				// 生成下载 URL
+				downloadUrl := fmt.Sprintf("/gb28181/download?downloadId=%s", downloadId)
+
+				gb.Info("从缓存返回已下载的录像",
+					"downloadId", downloadId,
+					"filePath", cachedRecord.FilePath,
+					"downloadUrl", downloadUrl)
+				resp.Code = 0
+				resp.Message = "录像已存在（来自缓存）"
+				resp.Total = 0
+				resp.Data = &pb.StartDownloadData{
+					DownloadId:  downloadId,
+					Status:      "completed",
+					DownloadUrl: downloadUrl,
+				}
+				return resp, nil
+			} else {
+				// 文件不存在，删除缓存记录和RecordStream记录
+				gb.DB.Delete(&cachedRecord)
+				// 同时删除MP4插件的RecordStream记录（通过FilePath）
+				gb.DB.Where("file_path = ?", cachedRecord.FilePath).Delete(&m7s.RecordStream{})
+				gb.Warn("缓存记录的文件不存在，已删除缓存和RecordStream记录",
+					"downloadId", downloadId,
+					"filePath", cachedRecord.FilePath)
+			}
+		}
+	}
+
+	// 6. 检查正在进行的下载任务
+	if existingDialog, exists := gb.downloadDialogs.Get(downloadId); exists {
+		resp.Code = 200
+		resp.Message = "下载任务正在进行中"
+		resp.Total = 0
+		resp.Data = &pb.StartDownloadData{
+			DownloadId:  downloadId,
+			Status:      existingDialog.Status,
+			DownloadUrl: existingDialog.DownloadUrl,
+		}
+		return resp, nil
+	}
+
+	// 7. 检查已完成的下载任务（内存缓存）
+	if completedDialog, exists := gb.completedDownloads.Get(downloadId); exists {
+		resp.Code = 0
+		resp.Message = "下载任务已完成"
+		resp.Total = 0
+		resp.Data = &pb.StartDownloadData{
+			DownloadId:  downloadId,
+			Status:      completedDialog.Status,
+			DownloadUrl: completedDialog.DownloadUrl,
+		}
+		return resp, nil
+	}
+
+	// 8. 下载链接将在录制开始后动态生成
+	// 初始为空，等进度更新时从数据库查询后填充
+	downloadUrl := ""
+
+	// 9. 创建下载对话
+	downloadSpeed := int(req.DownloadSpeed)
+	if downloadSpeed <= 0 || downloadSpeed > 4 {
+		downloadSpeed = 4 // 默认4倍速，避免丢帧
+	}
+
+	dialog := &DownloadDialog{
+		gb:            gb,
+		DownloadId:    downloadId,
+		DeviceId:      req.DeviceId,
+		ChannelId:     req.ChannelId,
+		StartTime:     startTime,
+		EndTime:       endTime,
+		DownloadSpeed: downloadSpeed,
+		DownloadUrl:   downloadUrl,
+		Status:        "pending",
+		Progress:      0,
+	}
+	dialog.Logger = gb.Logger.With("streamPath", downloadId, "channelId", req.DeviceId+"_"+req.ChannelId)
+	dialog.Task.Context = ctx
+
+	// 10. 添加到下载对话集合（会自动调用 Start 方法）
+	gb.downloadDialogs.AddTask(dialog)
+
+	resp.Code = 0
+	resp.Message = "下载任务已创建"
+	resp.Total = 0
+	resp.Data = &pb.StartDownloadData{
+		DownloadId:  downloadId,
+		Status:      "pending",
+		DownloadUrl: downloadUrl,
+	}
+	return resp, nil
+}
+
+// GetDownloadProgress 实现查询下载进度接口
+func (gb *GB28181Plugin) GetDownloadProgress(ctx context.Context, req *pb.GetDownloadProgressRequest) (*pb.DownloadProgressResponse, error) {
+	resp := &pb.DownloadProgressResponse{}
+
+	// 1. 参数验证
+	if req.DownloadId == "" {
+		resp.Code = 400
+		resp.Message = "downloadId 不能为空"
+		return resp, nil
+	}
+
+	// 2. 查询任务
+	dialog, exists := gb.downloadDialogs.Get(req.DownloadId)
+	if !exists {
+		completedDialog, exists := gb.completedDownloads.Get(req.DownloadId)
+		if exists {
+			resp.Code = 0
+			resp.Message = "success"
+			resp.Total = 0
+			resp.Data = &pb.DownloadProgressData{
+				DownloadId:  completedDialog.DownloadId,
+				Status:      completedDialog.Status,
+				Progress:    int32(completedDialog.Progress),
+				FilePath:    completedDialog.FilePath,
+				DownloadUrl: completedDialog.DownloadUrl,
+				Error:       completedDialog.Error,
+				StartedAt:   timestamppb.New(completedDialog.StartedAt),
+			}
+			if !completedDialog.CompletedAt.IsZero() {
+				resp.Data.CompletedAt = timestamppb.New(completedDialog.CompletedAt)
+			}
+			return resp, nil
+		} else {
+			resp.Code = 404
+			resp.Message = "下载任务不存在"
+			return resp, nil
+		}
+	}
+
+	// 3. 构建响应
+	resp.Code = 0
+	resp.Message = "success"
+	resp.Total = 0
+	resp.Data = &pb.DownloadProgressData{
+		DownloadId:  dialog.DownloadId,
+		Status:      dialog.Status,
+		Progress:    int32(dialog.Progress),
+		FilePath:    dialog.FilePath,
+		DownloadUrl: dialog.DownloadUrl,
+		Error:       dialog.ErrorString,
+		StartedAt:   timestamppb.New(dialog.StartedAt),
+	}
+	if !dialog.CompletedAt.IsZero() {
+		resp.Data.CompletedAt = timestamppb.New(dialog.CompletedAt)
+	}
+
 	return resp, nil
 }

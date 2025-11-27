@@ -12,10 +12,11 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/langhuihui/gomem"
+	task "github.com/langhuihui/gotask"
 	pkg "m7s.live/v5/pkg"
 	"m7s.live/v5/pkg/config"
 	"m7s.live/v5/pkg/format"
-	"m7s.live/v5/pkg/task"
 	"m7s.live/v5/pkg/util"
 )
 
@@ -239,13 +240,15 @@ func (p *PullJob) Publish() (err error) {
 	if len(p.Connection.Args) > 0 {
 		streamPath += "?" + p.Connection.Args.Encode()
 	}
-	p.Publisher, err = p.Plugin.PublishWithConfig(p.puller, streamPath, p.PublishConfig)
+	var publisher *Publisher
+	publisher, err = p.Plugin.PublishWithConfig(p.puller, streamPath, p.PublishConfig)
 	if err == nil {
-		p.Publisher.OnDispose(func() {
-			if p.Publisher.StopReasonIs(pkg.ErrPublishDelayCloseTimeout, task.ErrStopByUser) || p.MaxRetry == 0 {
-				p.Stop(p.Publisher.StopReason())
+		p.Publisher = publisher
+		publisher.OnDispose(func() {
+			if publisher.StopReasonIs(pkg.ErrPublishDelayCloseTimeout, task.ErrStopByUser) || p.MaxRetry == 0 {
+				p.Stop(publisher.StopReason())
 			} else {
-				p.puller.Stop(p.Publisher.StopReason())
+				p.puller.Stop(publisher.StopReason())
 			}
 		})
 	}
@@ -426,7 +429,7 @@ type AnnexBPuller struct {
 }
 
 func (p *AnnexBPuller) Run() (err error) {
-	allocator := util.NewScalableMemoryAllocator(1 << util.MinPowerOf2)
+	allocator := gomem.NewScalableMemoryAllocator(1 << gomem.MinPowerOf2)
 	defer allocator.Recycle()
 	writer := NewPublishVideoWriter[*format.AnnexB](p.PullJob.Publisher, allocator)
 	frame := writer.VideoFrame

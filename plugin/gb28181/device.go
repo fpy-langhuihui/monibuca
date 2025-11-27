@@ -2,6 +2,7 @@ package plugin_gb28181pro
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -16,7 +17,7 @@ import (
 
 	"github.com/emiago/sipgo"
 	"github.com/emiago/sipgo/sip"
-	"m7s.live/v5/pkg/task"
+	"github.com/langhuihui/gotask"
 	"m7s.live/v5/pkg/util"
 	gb28181 "m7s.live/v5/plugin/gb28181/pkg"
 	mrtp "m7s.live/v5/plugin/rtp/pkg"
@@ -48,10 +49,12 @@ func (d *DeviceKeepaliveTickTask) Tick(any) {
 		keepaliveSeconds = d.device.KeepaliveInterval
 	}
 	if timeDiff := time.Since(d.device.KeepaliveTime); timeDiff > time.Duration(d.device.KeepaliveCount*keepaliveSeconds)*time.Second {
+		d.device.Debug("keeplive time out", "timediff", timeDiff, "currettime", time.Now(), "d.device.KeepaliveTime", d.device.KeepaliveTime, "timeout time", time.Duration(d.device.KeepaliveCount*keepaliveSeconds)*time.Second)
 		d.device.Online = false
 		d.device.Status = DeviceOfflineStatus
 		// 设置所有通道状态为off
 		d.device.channels.Range(func(channel *Channel) bool {
+			d.device.Debug("keeplive time out", "timediff", timeDiff, "offline channeid", channel.ChannelId)
 			channel.Status = "OFF"
 			return true
 		})
@@ -81,11 +84,11 @@ type Device struct {
 	CreateTime            time.Time       `gorm:"primaryKey"` // 创建时间
 	UpdateTime            time.Time       // 更新时间
 	Charset               string          // 字符集, 支持 UTF-8 与 GB2312
-	SubscribeCatalog      int             `gorm:"default:0"` // 目录订阅周期，0为不订阅
-	SubscribePosition     int             `gorm:"default:0"` // 移动设备位置订阅周期，0为不订阅
-	PositionInterval      int             `gorm:"default:6"` // 移动设备位置信息上报时间间隔,单位:秒,默认值6
-	SubscribeAlarm        int             `gorm:"default:0"` // 报警订阅周期，0为不订阅
-	SSRCCheck             bool            // 是否开启ssrc校验，默认关闭，开启可以防止串流
+	SubscribeCatalog      int             `gorm:"default:0"`                     // 目录订阅周期，0为不订阅
+	SubscribePosition     int             `gorm:"default:0"`                     // 移动设备位置订阅周期，0为不订阅
+	PositionInterval      int             `gorm:"default:6"`                     // 移动设备位置信息上报时间间隔,单位:秒,默认值6
+	SubscribeAlarm        int             `gorm:"default:0"`                     // 报警订阅周期，0为不订阅
+	SSRCCheck             bool            `gorm:"default:false" default:"false"` // 是否开启ssrc校验，默认关闭，开启可以防止串流
 	GeoCoordSys           string          // 地理坐标系， 目前支持 WGS84,GCJ02
 	Password              string          // 密码
 	SipIp                 string          // SIP交互IP（设备访问平台的IP）
@@ -113,6 +116,7 @@ type Device struct {
 	CatalogSubscribeTask  *CatalogSubscribeTask  `gorm:"-:all"`
 	PositionSubscribeTask *PositionSubscribeTask `gorm:"-:all"`
 	AlarmSubscribeTask    *AlarmSubscribeTask    `gorm:"-:all"`
+	Cataloging            bool                   `gorm:"-:all" default:"false"`
 }
 
 func (d *Device) TableName() string {
@@ -131,7 +135,7 @@ func (d *Device) Dispose() {
 		// 保存当前内存中的channels
 		if d.channels.Length > 0 {
 			d.channels.Range(func(channel *Channel) bool {
-				if err := d.plugin.DB.Create(channel.DeviceChannel).Error; err != nil {
+				if err := d.plugin.DB.Save(channel.DeviceChannel).Error; err != nil {
 					d.Error("保存设备通道记录失败", "error", err)
 				}
 				if channel.PullProxyTask != nil {
@@ -144,6 +148,9 @@ func (d *Device) Dispose() {
 		}
 		// 保存设备信息
 		d.plugin.DB.Save(d)
+		if deviceRegisterQueueTask, ok := d.plugin.deviceRegisterManager.Get(d.DeviceId); ok {
+			deviceRegisterQueueTask.Stop(errors.New("设备注销"))
+		}
 	}
 }
 
@@ -197,6 +204,7 @@ type catalogHandlerTask struct {
 func (c *catalogHandlerTask) Run() (err error) {
 	// 处理目录信息
 	d := c.d
+	d.Cataloging = true
 	msg := c.msg
 	catalogReq, exists := d.catalogReqs.Get(msg.SN)
 	if !exists {
@@ -229,7 +237,11 @@ func (c *catalogHandlerTask) Run() (err error) {
 		if c.CustomChannelId == "" {
 			c.CustomChannelId = c.ChannelId
 		}
+		if c.CustomName == "" {
+			c.CustomName = c.Name
+		}
 		// 使用 Save 进行 upsert 操作
+		d.Debug("ready to addOrUpdateChannel", "channel.ID is", c.ID, "channel.Status is", c.Status, "channel.Name", c.Name, "channel.Owner", c.Owner, "channel.Address", c.Address)
 		d.addOrUpdateChannel(c)
 		catalogReq.TotalCount++
 	}
@@ -242,6 +254,7 @@ func (c *catalogHandlerTask) Run() (err error) {
 	if catalogReq.IsComplete() {
 		catalogReq.Resolve()
 		d.catalogReqs.RemoveByKey(msg.SN)
+		d.Cataloging = false
 	}
 	return
 }
@@ -249,6 +262,7 @@ func (c *catalogHandlerTask) Run() (err error) {
 func (d *Device) onMessage(req *sip.Request, tx sip.ServerTransaction, msg *gb28181.Message) (err error) {
 	source := req.Source()
 	hostname, portStr, _ := net.SplitHostPort(source)
+	d.Debug("onMessage", "source", source, "hostname", hostname, "port", portStr)
 	port, _ := strconv.Atoi(portStr)
 	if d.IP != hostname || d.Port != port {
 		d.Recipient.Host = hostname
@@ -257,6 +271,7 @@ func (d *Device) onMessage(req *sip.Request, tx sip.ServerTransaction, msg *gb28
 	d.IP = hostname
 	d.Port = port
 	d.HostAddress = hostname + ":" + portStr
+	d.Debug("onMessage", "d.IP", d.IP, "d.Port", d.Port, "d.HostAddress", d.HostAddress)
 	var body []byte
 	switch msg.CmdType {
 	case "Keepalive":
@@ -323,17 +338,7 @@ func (d *Device) onMessage(req *sip.Request, tx sip.ServerTransaction, msg *gb28
 				}
 				request.AppendHeader(&toHeader)
 
-				// 添加Via头部
-				viaHeader := sip.ViaHeader{
-					ProtocolName:    "SIP",
-					ProtocolVersion: "2.0",
-					Transport:       platform.PlatformModel.Transport,
-					Host:            platform.PlatformModel.DeviceIP,
-					Port:            platform.PlatformModel.DevicePort,
-					Params:          sip.NewParams(),
-				}
-				viaHeader.Params.Add("branch", sip.GenerateBranchN(16)).Add("rport", "")
-				request.AppendHeader(&viaHeader)
+				// 不手动添加Via头部，让Client自动创建并由TransportLayer填充正确的IP
 
 				// 设置Content-Type
 				contentTypeHeader := sip.ContentTypeHeader("Application/MANSCDP+xml")
@@ -364,8 +369,12 @@ func (d *Device) onMessage(req *sip.Request, tx sip.ServerTransaction, msg *gb28
 		d.Model = msg.Model
 		d.Firmware = msg.Firmware
 		d.UpdateTime = time.Now()
-		d.Latitude = msg.Latitude
-		d.Longitude = msg.Longitude
+		if msg.Latitude != "" {
+			d.Latitude = msg.Latitude
+		}
+		if msg.Longitude != "" {
+			d.Longitude = msg.Longitude
+		}
 	case "Alarm":
 		// 创建报警记录
 		alarm := &gb28181.DeviceAlarm{
@@ -434,9 +443,23 @@ func (d *Device) onMessage(req *sip.Request, tx sip.ServerTransaction, msg *gb28
 
 func (d *Device) send(req *sip.Request) (*sip.Response, error) {
 	d.SN++
-	d.Trace("send", "req", req.String())
+
+	// 检查Via头部和Transport
+	via := req.Via()
+	transportBefore := req.Transport()
+	d.Info("send请求前", "device.Transport", d.Transport, "req.Transport()", transportBefore, "via.Transport", func() string {
+		if via != nil {
+			return via.Transport
+		}
+		return "nil"
+	}())
+
 	req.SetTransport(d.Transport)
-	return d.client.Do(context.Background(), req)
+	transportAfter := req.Transport()
+	d.Info("send请求SetTransport后", "req.Transport()", transportAfter)
+
+	d.Trace("send", "req", req.String())
+	return d.client.Do(d, req)
 }
 
 func (d *Device) Go() (err error) {
@@ -512,17 +535,20 @@ func (d *Device) CreateRequest(Method sip.RequestMethod, Recipient any) *sip.Req
 		Address: sip.Uri{User: d.DeviceId, Host: d.HostAddress},
 	}
 	req.AppendHeader(&toHeader)
-	//viaHeader := sip.ViaHeader{
-	//	ProtocolName:    "SIP",
-	//	ProtocolVersion: "2.0",
-	//	Transport:       "UDP",
-	//	Host:            d.SipIp,
-	//	Port:            d.LocalPort,
-	//	Params:          sip.HeaderParams(sip.NewParams()),
-	//}
-	//viaHeader.Params.Add("branch", sip.GenerateBranchN(10)).Add("rport", "")
-	//req.AppendHeader(&viaHeader)
 	req.AppendHeader(&d.contactHDR)
+
+	// 添加Via头部，使用设备的Transport协议
+	// Via头部必须用PrependHeader放在最前面，这样Client才能正确识别Transport
+	viaHeader := sip.ViaHeader{
+		ProtocolName:    "SIP",
+		ProtocolVersion: "2.0",
+		Transport:       d.Transport, // 使用设备注册时的Transport
+		Host:            d.SipIp,
+		Port:            d.LocalPort,
+		Params:          sip.HeaderParams(sip.NewParams()),
+	}
+	viaHeader.Params.Add("branch", sip.GenerateBranchN(16))
+	req.PrependHeader(&viaHeader)
 	return req
 }
 
@@ -625,7 +651,8 @@ func (d *Device) frontEndCmdString(cmdCode int32, parameter1 int32, parameter2 i
 }
 
 func (d *Device) addOrUpdateChannel(c gb28181.DeviceChannel) {
-	if channel, ok := d.channels.Get(c.ID); ok {
+	var resultChannel *Channel
+	if channel, ok := d.plugin.channels.Get(c.ID); ok {
 		// 通道已存在，保留自定义字段
 		if channel.DeviceChannel != nil {
 			// 保存原有的自定义字段
@@ -642,16 +669,18 @@ func (d *Device) addOrUpdateChannel(c gb28181.DeviceChannel) {
 		}
 		// 更新通道信息
 		channel.DeviceChannel = &c
+		resultChannel = channel
+		d.Debug("addOrUpdateChannel, get channel from d.plugin.channels", "channel.ID is ", c.ID, "channel.Status is", c.Status)
 	} else {
 		// 创建新通道
-		channel = &Channel{
+		resultChannel = &Channel{
 			Device:        d,
 			Logger:        d.Logger.With("channel", c.ID),
 			DeviceChannel: &c,
 		}
-		d.channels.Set(channel)
-		d.plugin.channels.Set(channel)
 	}
+	d.channels.Set(resultChannel)
+	d.plugin.channels.Set(resultChannel)
 }
 
 func (d *Device) GetID() string {
@@ -740,14 +769,14 @@ func (d *Device) onNotify(req *sip.Request, tx sip.ServerTransaction, msg *gb281
 	if strings.Contains(string(notifyBody), "<Notify>") {
 		// 处理 Notify 通知
 		notify := &gb28181.AlarmNotify{}
-		if err := gb28181.DecodeXML(notify, notifyBody); err != nil {
+		if err := gb28181.DecodeXML(notify, notifyBody, d.Charset); err != nil {
 			return fmt.Errorf("decode notify xml error: %v", err)
 		}
 
 		if notify.CmdType == "MobilePosition" {
 			// 处理 MobilePosition 通知
 			posNotify := &gb28181.MobilePositionNotify{}
-			if err := gb28181.DecodeXML(posNotify, notifyBody); err != nil {
+			if err := gb28181.DecodeXML(posNotify, notifyBody, d.Charset); err != nil {
 				return fmt.Errorf("decode mobile position notify xml error: %v", err)
 			}
 
@@ -766,8 +795,12 @@ func (d *Device) onNotify(req *sip.Request, tx sip.ServerTransaction, msg *gb281
 			gpsTime = gpsTime.UTC()
 
 			// 更新设备的经纬度信息
-			d.Longitude = fmt.Sprintf("%.6f", posNotify.Longitude)
-			d.Latitude = fmt.Sprintf("%.6f", posNotify.Latitude)
+			if posNotify.Longitude != 0 {
+				d.Longitude = fmt.Sprintf("%.6f", posNotify.Longitude)
+			}
+			if posNotify.Latitude != 0 {
+				d.Latitude = fmt.Sprintf("%.6f", posNotify.Latitude)
+			}
 			d.UpdateTime = time.Now()
 
 			// 如果需要，可以将更新保存到数据库
@@ -852,7 +885,7 @@ func (d *Device) onNotify(req *sip.Request, tx sip.ServerTransaction, msg *gb281
 	if strings.Contains(string(notifyBody), "<Response>") {
 		// 重新解析为 Response 消消息
 		response := &gb28181.Message{}
-		if err := gb28181.DecodeXML(response, notifyBody); err != nil {
+		if err := gb28181.DecodeXML(response, notifyBody, d.Charset); err != nil {
 			return fmt.Errorf("decode response xml error: %v", err)
 		}
 
